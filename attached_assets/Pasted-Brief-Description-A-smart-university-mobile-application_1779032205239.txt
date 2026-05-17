@@ -1,0 +1,95 @@
+Brief Description
+
+A smart university mobile application that lets students securely access academic information such as timetables, results, mid-term marks, syllabus, notifications, and profile details. The app also provides real-time college announcements and exam updates. An admin panel enables administrators to upload marks, update timetables, manage student records, and send notifications to all students.
+
+Features
+
+• Student Authentication: Secure sign-up and login using email/password or single sign-on (Google/University ID).  
+• Admin Authentication: Separate login for administrators with role-based access.  
+• Student Dashboard: Overview of upcoming classes, recent notifications, and quick access to key features.  
+• Timetable View: Display weekly class schedule fetched from the database, with real-time updates.  
+• Mid-Term Marks: View marks for each subject per mid-term exam.  
+• Semester Results: Access published semester results (GPA, grade, subject-wise marks).  
+• Syllabus Access: Download or view syllabus PDF for each subject.  
+• Notifications & Announcements: Real-time push notifications for exam schedules, general announcements, and result updates.  
+• Student Profile: View personal details, enrollment info, and edit basic contact information.  
+• Admin Panel – Upload Results: Upload semester results and mid-term marks in bulk (CSV/manual entry).  
+• Admin Panel – Manage Students: Add, edit, or remove student records.  
+• Admin Panel – Update Timetable: Modify class schedules and push updates to students.  
+• Admin Panel – Send Notifications: Compose and send push notifications to selected groups or all students.  
+• Dark Mode UI: Toggle between light and dark themes.  
+• Real-time Database Sync: All updates reflect instantly on student devices.  
+• Mobile-friendly Interface: Designed for iOS and Android via React Native/Expo.
+
+User Flow
+
+1. Student: Opens app → sees login screen → enters credentials → lands on dashboard.  
+Taps on "Timetable" to view weekly schedule.  
+Taps on "Mid Marks" or "Results" to see academic performance.  
+Taps on "Syllabus" to select a subject and download/view syllabus.  
+Receives push notification → taps it → opens relevant screen (e.g., result update).  
+Accesses "Profile" to view/edit personal details.
+
+2. Admin: Opens app → selects "Admin Login" → enters credentials → sees admin panel.  
+Navigates to "Upload Results" → selects batch/semester → uploads CSV file or enters marks manually.  
+Goes to "Manage Students" → searches/adds/edits student records.  
+Goes to "Update Timetable" → modifies schedule entries and publishes changes.  
+Uses "Send Notifications" → writes message → selects recipients → sends push.
+
+Technical Stack
+
+• Frontend: React Native with Expo (iOS and Android).  
+• Backend: Firebase (Firestore for real-time database, Firebase Authentication, Cloud Messaging for notifications).  
+• Admin Panel: Built within the same app using role-based UI conditional rendering.  
+• Storage: Firebase Storage for syllabus PDFs and bulk upload files.  
+• State Management: React Context or Redux for user state and global data.
+
+Design Guidelines
+
+• Styling: Minimal, flat, modern UI. Primary color: University blue (#1E3A8A). Secondary: White (#FFFFFF) and neutral gray (#F3F4F6). Dark mode palette: Dark background (#121212), text (#E0E0E0), accent (#3B82F6).  
+• Typography: System font (San Francisco for iOS, Roboto for Android). Headings: Bold, 20px. Body: Regular, 16px.  
+• Page Layout: Bottom tab navigation for main sections (Dashboard, Timetable, Results, Notifications, Profile). Admin: side drawer or separate tab set.  
+• Navigation Structure: Bottom tabs → nested stack navigators for sub-screens. Push notifications navigate to specific screens via deep linking.  
+• Components: Cards for timetable and marks, list items for notifications, modals for upload forms.
+
+Backend Structure
+
+• Database Architecture (Firestore):
+Collection users (documents: studentID, admin ID): fields: name, email, role, enrollment number, batch, department, profilePic, fcmToken.  
+Collection timetable (documents: courseID, day, time, room, teacher, batch).  
+Collection mid_marks (documents: studentID, subjectCode, midTerm, marks, total).  
+Collection semester_results (documents: studentID, semester, gpa, subjectResults array).  
+Collection syllabus (documents: subjectCode, name, pdfUrl).  
+Collection notifications (documents: title, body, timestamp, targetBatch, sentBy, readBy array).
+
+• API Endpoints: No custom REST API – uses Firebase SDK for direct client-to-database operations with security rules. Admin operations are restricted using custom claims or Firestore security rules based on role field.  
+• Security Measures: Firebase Authentication with email/password. Firestore rules: students can read only their own marks/results/profile; admins can read/write all collections. Notifications sent via Firebase Cloud Messaging using stored FCM tokens.
+
+In-Scope and Out-of-Scope Items
+
+In-Scope:
+
+• Student and admin authentication
+• Student dashboard with key info
+• Timetable viewing (read-only for students)
+• Mid-term marks and semester results viewing
+• Syllabus PDF download
+• Push notifications for announcements
+• Student profile management (view and edit basic fields)
+• Admin upload of results (CSV and manual)
+• Admin student record management
+• Admin timetable update
+• Admin notification sending
+• Dark mode toggle
+• Real-time database updates
+• Cross-platform mobile support (iOS and Android)
+
+Out-of-Scope:
+
+• Integration with university existing LMS or ERP systems
+• Attendance tracking
+• Fee payment and receipt generation
+• Chat/messaging between students and faculty
+• Advanced analytics or reporting dashboards
+• Web version for desktop
+• Multi-language support (future enhancement)
