@@ -78,11 +78,13 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
 
 // ─── GPA Calculator Tab ────────────────────────────────────────────────────
 function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/useColors").useColors> }) {
-  const { syllabus } = useAppData();
+  const { getStudentSyllabus } = useAppData();
+  const { user: gpuUser } = useAuth();
+  const filteredSyllabus = getStudentSyllabus(gpuUser?.year ?? "", gpuUser?.branch ?? "");
   const insets = useSafeAreaInsets();
 
   const [subjects, setSubjects] = useState<CalcSubject[]>(() =>
-    syllabus.map((s) => ({
+    filteredSyllabus.map((s) => ({
       id: s.id,
       name: s.subjectName,
       code: s.subjectCode,
@@ -351,7 +353,8 @@ export default function AcademicsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { getStudentMidMarks, getStudentResults, syllabus } = useAppData();
+  const { getStudentMidMarks, getStudentResults, getStudentSyllabus: getSyllabus } = useAppData();
+  const syllabus = getSyllabus(user?.year ?? "", user?.branch ?? "");
   const [activeTab, setActiveTab] = useState<Tab>("midmarks");
   const [expandedSyllabus, setExpandedSyllabus] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState(0);

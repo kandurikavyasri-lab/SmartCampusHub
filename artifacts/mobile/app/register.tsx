@@ -17,29 +17,50 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import DropdownPicker from "@/components/DropdownPicker";
+import { YEARS, BRANCHES, SECTIONS } from "@/constants/academia";
 
 export default function RegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
+
+  const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
-    name: "", email: "", password: "",
-    enrollmentNo: "", batch: "", department: "", phone: "", joinYear: new Date().getFullYear().toString(),
+    name: "",
+    email: "",
+    password: "",
+    year: "",
+    branch: "",
+    section: "",
+    rollNumber: "",
+    phone: "",
+    enrollmentNo: "",
+    joinYear: new Date().getFullYear().toString(),
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const updateField = (key: keyof typeof form, value: string) =>
-    setForm((p) => ({ ...p, [key]: value }));
+  const update = (key: keyof typeof form, val: string) =>
+    setForm((p) => ({ ...p, [key]: val }));
+
+  const canGoToStep2 = form.name.trim() && form.email.trim() && form.password.trim();
 
   const handleRegister = async () => {
-    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
-      setError("Name, email, and password are required");
+    if (!form.year || !form.branch || !form.section) {
+      setError("Please select year, branch, and section");
+      return;
+    }
+    if (!form.rollNumber.trim()) {
+      setError("Roll number is required");
       return;
     }
     setLoading(true);
     setError("");
-    const result = await register(form);
+    const result = await register({
+      ...form,
+      enrollmentNo: form.rollNumber,
+    });
     setLoading(false);
     if (!result.success) {
       setError(result.error ?? "Registration failed");
@@ -49,16 +70,6 @@ export default function RegisterScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace("/(tabs)");
   };
-
-  const fields: { key: keyof typeof form; label: string; placeholder: string; icon: string; keyboard?: "default" | "email-address" | "phone-pad" | "numeric" }[] = [
-    { key: "name", label: "Full Name", placeholder: "Your full name", icon: "user" },
-    { key: "email", label: "Email", placeholder: "University email", icon: "mail", keyboard: "email-address" },
-    { key: "password", label: "Password", placeholder: "Create a password", icon: "lock" },
-    { key: "enrollmentNo", label: "Enrollment No.", placeholder: "e.g. CS2022001", icon: "hash" },
-    { key: "batch", label: "Batch", placeholder: "e.g. CS-2022", icon: "users" },
-    { key: "department", label: "Department", placeholder: "e.g. Computer Science", icon: "book" },
-    { key: "phone", label: "Phone", placeholder: "Contact number", icon: "phone", keyboard: "phone-pad" },
-  ];
 
   return (
     <KeyboardAvoidingView
@@ -70,67 +81,171 @@ export default function RegisterScreen() {
           styles.scroll,
           {
             paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16),
-            paddingBottom: insets.bottom + 32,
+            paddingBottom: insets.bottom + 40,
           },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
         <View style={styles.topRow}>
           <Pressable
             style={[styles.backBtn, { backgroundColor: colors.secondary }]}
-            onPress={() => router.back()}
+            onPress={() => (step === 2 ? setStep(1) : router.back())}
           >
             <Feather name="arrow-left" size={20} color={colors.foreground} />
           </Pressable>
         </View>
+
         <Text style={[styles.title, { color: colors.foreground }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Register as a new student
+          {step === 1 ? "Step 1 of 2 — Personal details" : "Step 2 of 2 — Academic details"}
         </Text>
 
-        <View style={styles.fields}>
-          {fields.map(({ key, label, placeholder, icon, keyboard }) => (
-            <View key={key} style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>{label}</Text>
+        {/* Step indicator */}
+        <View style={styles.stepRow}>
+          <View style={[styles.stepDot, { backgroundColor: colors.primary }]} />
+          <View style={[styles.stepLine, { backgroundColor: step === 2 ? colors.primary : colors.border }]} />
+          <View style={[styles.stepDot, { backgroundColor: step === 2 ? colors.primary : colors.border }]} />
+        </View>
+
+        {/* Step 1: Personal info */}
+        {step === 1 && (
+          <View style={styles.fields}>
+            {(
+              [
+                { key: "name",     label: "Full Name",  placeholder: "Your full name",         icon: "user"  },
+                { key: "email",    label: "Email",      placeholder: "University email",        icon: "mail"  },
+                { key: "password", label: "Password",   placeholder: "Create a password",       icon: "lock"  },
+                { key: "phone",    label: "Phone",      placeholder: "Contact number (optional)",icon:"phone" },
+              ] as const
+            ).map(({ key, label, placeholder, icon }) => (
+              <View key={key} style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>{label}</Text>
+                <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
+                  <Feather name={icon} size={16} color={colors.mutedForeground} />
+                  <TextInput
+                    style={[styles.input, { color: colors.foreground }]}
+                    placeholder={placeholder}
+                    placeholderTextColor={colors.mutedForeground}
+                    value={form[key]}
+                    onChangeText={(v) => update(key, v)}
+                    autoCapitalize={key === "email" ? "none" : key === "name" ? "words" : "none"}
+                    keyboardType={key === "phone" ? "phone-pad" : key === "email" ? "email-address" : "default"}
+                    secureTextEntry={key === "password"}
+                  />
+                </View>
+              </View>
+            ))}
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.nextBtn,
+                { backgroundColor: canGoToStep2 ? colors.primary : colors.muted, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={() => { if (canGoToStep2) { setError(""); setStep(2); } }}
+              disabled={!canGoToStep2}
+            >
+              <Text style={[styles.nextBtnText, { color: canGoToStep2 ? "#fff" : colors.mutedForeground }]}>
+                Continue
+              </Text>
+              <Feather name="arrow-right" size={16} color={canGoToStep2 ? "#fff" : colors.mutedForeground} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* Step 2: Academic info */}
+        {step === 2 && (
+          <View style={styles.fields}>
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Year *</Text>
+              <DropdownPicker
+                label="Select Year"
+                value={form.year}
+                options={YEARS}
+                onSelect={(v) => update("year", v)}
+                placeholder="Select your year"
+                icon="calendar"
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Branch / Department *</Text>
+              <DropdownPicker
+                label="Select Branch"
+                value={form.branch}
+                options={BRANCHES}
+                onSelect={(v) => update("branch", v)}
+                placeholder="Select your branch"
+                icon="book"
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Section *</Text>
+              <DropdownPicker
+                label="Select Section"
+                value={form.section}
+                options={SECTIONS}
+                onSelect={(v) => update("section", v)}
+                placeholder="Select your section"
+                icon="users"
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Roll Number *</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
-                <Feather name={icon as "user"} size={16} color={colors.mutedForeground} />
+                <Feather name="hash" size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder={placeholder}
+                  placeholder="e.g. CS20001"
                   placeholderTextColor={colors.mutedForeground}
-                  value={form[key]}
-                  onChangeText={(v) => updateField(key, v)}
-                  autoCapitalize={key === "email" ? "none" : "words"}
-                  keyboardType={keyboard ?? "default"}
-                  secureTextEntry={key === "password"}
+                  value={form.rollNumber}
+                  onChangeText={(v) => update("rollNumber", v)}
+                  autoCapitalize="characters"
                 />
               </View>
             </View>
-          ))}
-        </View>
 
-        {error ? (
-          <View style={[styles.errorBox, { backgroundColor: colors.destructive + "18" }]}>
-            <Feather name="alert-circle" size={14} color={colors.destructive} />
-            <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+            {/* Preview card */}
+            {form.year && form.branch && (
+              <View style={[styles.previewCard, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
+                <Feather name="info" size={14} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.previewText, { color: colors.primary }]}>
+                    You'll see timetable, syllabus, and results for{" "}
+                    <Text style={{ fontFamily: "Inter_700Bold" }}>
+                      {form.year} Year {form.branch}{form.section ? ` Section ${form.section}` : ""}
+                    </Text>
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {error ? (
+              <View style={[styles.errorBox, { backgroundColor: colors.destructive + "18" }]}>
+                <Feather name="alert-circle" size={14} color={colors.destructive} />
+                <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.nextBtn,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={[styles.nextBtnText, { color: "#fff" }]}>Create Account</Text>
+              )}
+            </Pressable>
           </View>
-        ) : null}
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.registerBtn,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-          ]}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.registerBtnText}>Create Account</Text>
-          )}
-        </Pressable>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -139,11 +254,14 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: 24 },
-  topRow: { marginBottom: 24 },
+  topRow: { marginBottom: 20 },
   backBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 6 },
-  subtitle: { fontSize: 15, fontFamily: "Inter_400Regular", marginBottom: 28 },
-  fields: { gap: 16, marginBottom: 16 },
+  title: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 20 },
+  stepRow: { flexDirection: "row", alignItems: "center", marginBottom: 28, gap: 0 },
+  stepDot: { width: 12, height: 12, borderRadius: 6 },
+  stepLine: { flex: 1, height: 2, marginHorizontal: 6 },
+  fields: { gap: 16 },
   fieldGroup: { gap: 6 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium" },
   inputRow: {
@@ -151,14 +269,19 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
   },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  previewCard: {
+    flexDirection: "row", gap: 10, alignItems: "flex-start",
+    borderWidth: 1, borderRadius: 12, padding: 12,
+  },
+  previewText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
   errorBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, marginBottom: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
   },
   errorText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
-  registerBtn: {
-    paddingVertical: 15, borderRadius: 14,
-    alignItems: "center", justifyContent: "center", marginTop: 8,
+  nextBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 15, borderRadius: 14, marginTop: 4,
   },
-  registerBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  nextBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });

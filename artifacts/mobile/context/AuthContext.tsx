@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { BRANCH_FULL } from "@/constants/academia";
 
 export interface User {
   id: string;
@@ -7,9 +8,15 @@ export interface User {
   email: string;
   password: string;
   role: "student" | "admin";
+  // Academic fields
+  year: string;        // "1st" | "2nd" | "3rd" | "4th"
+  branch: string;      // "CSE" | "ECE" | "EEE" | "Civil" | "Mechanical" | "IT" | "AIDS"
+  section: string;     // "A" | "B" | "C" | "D"
+  rollNumber: string;
+  // Legacy / display
   enrollmentNo: string;
-  batch: string;
-  department: string;
+  batch: string;       // auto-derived: "{year}-{branch}"
+  department: string;  // full name of branch
   phone: string;
   joinYear: string;
 }
@@ -19,7 +26,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  register: (data: Omit<User, "id" | "role">) => Promise<{ success: boolean; error?: string }>;
+  register: (data: Omit<User, "id" | "role" | "batch" | "department">) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
@@ -32,8 +39,12 @@ const SEED_USERS: User[] = [
     email: "admin@university.edu",
     password: "admin123",
     role: "admin",
+    year: "",
+    branch: "",
+    section: "",
+    rollNumber: "ADM001",
     enrollmentNo: "ADM001",
-    batch: "All",
+    batch: "Admin",
     department: "Administration",
     phone: "+1 555-0100",
     joinYear: "2018",
@@ -44,9 +55,13 @@ const SEED_USERS: User[] = [
     email: "student@university.edu",
     password: "student123",
     role: "student",
+    year: "3rd",
+    branch: "CSE",
+    section: "A",
+    rollNumber: "CS20001",
     enrollmentNo: "CS2022001",
-    batch: "CS-2022",
-    department: "Computer Science",
+    batch: "3rd-CSE",
+    department: "Computer Science & Engineering",
     phone: "+1 555-0201",
     joinYear: "2022",
   },
@@ -56,11 +71,47 @@ const SEED_USERS: User[] = [
     email: "priya@university.edu",
     password: "student123",
     role: "student",
+    year: "3rd",
+    branch: "CSE",
+    section: "B",
+    rollNumber: "CS20002",
     enrollmentNo: "CS2022002",
-    batch: "CS-2022",
-    department: "Computer Science",
+    batch: "3rd-CSE",
+    department: "Computer Science & Engineering",
     phone: "+1 555-0202",
     joinYear: "2022",
+  },
+  {
+    id: "student-003",
+    name: "Rahul Verma",
+    email: "rahul@university.edu",
+    password: "student123",
+    role: "student",
+    year: "2nd",
+    branch: "ECE",
+    section: "A",
+    rollNumber: "EC21001",
+    enrollmentNo: "EC2023001",
+    batch: "2nd-ECE",
+    department: "Electronics & Communication",
+    phone: "+1 555-0203",
+    joinYear: "2023",
+  },
+  {
+    id: "student-004",
+    name: "Anjali Singh",
+    email: "anjali@university.edu",
+    password: "student123",
+    role: "student",
+    year: "1st",
+    branch: "IT",
+    section: "A",
+    rollNumber: "IT24001",
+    enrollmentNo: "IT2024001",
+    batch: "1st-IT",
+    department: "Information Technology",
+    phone: "+1 555-0204",
+    joinYear: "2024",
   },
 ];
 
@@ -68,19 +119,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    bootstrap();
-  }, []);
+  useEffect(() => { bootstrap(); }, []);
 
   async function bootstrap() {
     try {
       const existing = await AsyncStorage.getItem("users");
       if (!existing) {
         await AsyncStorage.setItem("users", JSON.stringify(SEED_USERS));
+      } else {
+        // Migrate old users that don't have year/branch/section
+        const parsed: User[] = JSON.parse(existing);
+        let changed = false;
+        const migrated = parsed.map((u) => {
+          if (u.role === "student" && !u.year) {
+            changed = true;
+            return { ...u, year: "3rd", branch: "CSE", section: "A", rollNumber: u.enrollmentNo ?? "" };
+          }
+          return u;
+        });
+        if (changed) await AsyncStorage.setItem("users", JSON.stringify(migrated));
       }
       const stored = await AsyncStorage.getItem("current_user");
       if (stored) {
-        setUser(JSON.parse(stored));
+        const u: User = JSON.parse(stored);
+        // Migrate stored user
+        if (u.role === "student" && !u.year) {
+          const migrated = { ...u, year: "3rd", branch: "CSE", section: "A", rollNumber: u.enrollmentNo ?? "" };
+          await AsyncStorage.setItem("current_user", JSON.stringify(migrated));
+          setUser(migrated);
+        } else {
+          setUser(u);
+        }
       }
     } catch (_) {
     } finally {
@@ -105,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }
 
-  async function register(data: Omit<User, "id" | "role">) {
+  async function register(data: Omit<User, "id" | "role" | "batch" | "department">) {
     const raw = await AsyncStorage.getItem("users");
     const users: User[] = raw ? JSON.parse(raw) : SEED_USERS;
     const exists = users.find((u) => u.email.toLowerCase() === data.email.toLowerCase());
@@ -114,6 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...data,
       id: "student-" + Date.now().toString(),
       role: "student",
+      batch: `${data.year}-${data.branch}`,
+      department: BRANCH_FULL[data.branch] ?? data.branch,
     };
     users.push(newUser);
     await AsyncStorage.setItem("users", JSON.stringify(users));
@@ -125,6 +196,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function updateProfile(data: Partial<User>) {
     if (!user) return;
     const updated = { ...user, ...data };
+    if (data.branch) updated.department = BRANCH_FULL[data.branch] ?? data.branch;
+    if (data.year || data.branch) updated.batch = `${updated.year}-${updated.branch}`;
     const raw = await AsyncStorage.getItem("users");
     const users: User[] = raw ? JSON.parse(raw) : [];
     const idx = users.findIndex((u) => u.id === user.id);

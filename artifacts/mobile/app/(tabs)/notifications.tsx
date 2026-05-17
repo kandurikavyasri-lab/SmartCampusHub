@@ -17,34 +17,25 @@ import { useColors } from "@/hooks/useColors";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
+  const diff = Date.now() - d.getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
   if (days < 7) return `${days}d ago`;
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const NOTIF_ICONS: Record<string, string> = {
-  exam: "edit",
-  result: "award",
-  holiday: "sun",
-  library: "book",
-  seminar: "mic",
-  default: "bell",
-};
-
 function getNotifIcon(title: string) {
   const lower = title.toLowerCase();
-  if (lower.includes("exam")) return NOTIF_ICONS.exam;
-  if (lower.includes("result")) return NOTIF_ICONS.result;
-  if (lower.includes("holiday")) return NOTIF_ICONS.holiday;
-  if (lower.includes("library")) return NOTIF_ICONS.library;
-  if (lower.includes("seminar") || lower.includes("lecture")) return NOTIF_ICONS.seminar;
-  return NOTIF_ICONS.default;
+  if (lower.includes("exam") || lower.includes("mid")) return "edit";
+  if (lower.includes("result") || lower.includes("grade")) return "award";
+  if (lower.includes("holiday")) return "sun";
+  if (lower.includes("library")) return "book";
+  if (lower.includes("seminar") || lower.includes("lecture") || lower.includes("workshop")) return "mic";
+  if (lower.includes("lab") || lower.includes("schedule")) return "calendar";
+  return "bell";
 }
 
 export default function NotificationsScreen() {
@@ -53,7 +44,7 @@ export default function NotificationsScreen() {
   const { user } = useAuth();
   const { markNotificationRead, getStudentNotifications } = useAppData();
 
-  const notifications = getStudentNotifications(user?.batch ?? "All");
+  const notifications = getStudentNotifications(user?.year ?? "All", user?.branch ?? "All");
   const unread = notifications.filter((n) => !n.isRead).length;
 
   const handlePress = async (id: string, isRead: boolean) => {
@@ -68,10 +59,7 @@ export default function NotificationsScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          {
-            paddingBottom: insets.bottom + 100,
-            paddingTop: Platform.OS === "web" ? 20 : 16,
-          },
+          { paddingBottom: insets.bottom + 100, paddingTop: Platform.OS === "web" ? 20 : 16 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -84,17 +72,25 @@ export default function NotificationsScreen() {
           )}
         </View>
 
+        {/* Filter info */}
+        {user?.year && user?.branch && (
+          <View style={[styles.filterInfo, { backgroundColor: colors.secondary }]}>
+            <Feather name="filter" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.filterText, { color: colors.mutedForeground }]}>
+              Showing notices for {user.year} Year · {user.branch}
+            </Text>
+          </View>
+        )}
+
         {notifications.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="bell-off" size={40} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-              No announcements yet
-            </Text>
+            <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>No announcements yet</Text>
           </View>
         ) : (
           <View style={styles.list}>
-            {notifications.map((n, idx) => (
+            {notifications.map((n) => (
               <Pressable
                 key={n.id}
                 style={({ pressed }) => [
@@ -121,12 +117,14 @@ export default function NotificationsScreen() {
                   </View>
                   <Text style={[styles.notifBody, { color: colors.mutedForeground }]}>{n.body}</Text>
                   <View style={styles.notifMeta}>
-                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                      {formatDate(n.timestamp)}
-                    </Text>
-                    {n.targetBatch !== "All" && (
-                      <View style={[styles.batchChip, { backgroundColor: colors.secondary }]}>
-                        <Text style={[styles.batchText, { color: colors.mutedForeground }]}>{n.targetBatch}</Text>
+                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{formatDate(n.timestamp)}</Text>
+                    {(n.targetYear !== "All" || n.targetBranch !== "All") && (
+                      <View style={[styles.targetChip, { backgroundColor: colors.secondary }]}>
+                        <Text style={[styles.targetChipText, { color: colors.mutedForeground }]}>
+                          {[n.targetYear !== "All" ? n.targetYear + " Yr" : "", n.targetBranch !== "All" ? n.targetBranch : ""]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -142,15 +140,14 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20 },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   title: { fontSize: 26, fontFamily: "Inter_700Bold" },
   unreadBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   unreadText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  filterInfo: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 16 },
+  filterText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   list: { gap: 10 },
-  notifCard: {
-    flexDirection: "row", gap: 14, borderRadius: 16,
-    padding: 14, borderWidth: 1,
-  },
+  notifCard: { flexDirection: "row", gap: 14, borderRadius: 16, padding: 14, borderWidth: 1 },
   iconContainer: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   notifContent: { flex: 1, gap: 5 },
   notifTop: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -159,8 +156,8 @@ const styles = StyleSheet.create({
   notifBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
   notifMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
   metaText: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  batchChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  batchText: { fontSize: 10, fontFamily: "Inter_500Medium" },
+  targetChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  targetChipText: { fontSize: 10, fontFamily: "Inter_500Medium" },
   emptyState: { alignItems: "center", paddingVertical: 80, gap: 12 },
   emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold" },
   emptySubtitle: { fontSize: 14, fontFamily: "Inter_400Regular" },

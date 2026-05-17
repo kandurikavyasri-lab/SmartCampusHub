@@ -16,7 +16,6 @@ import { useColors } from "@/hooks/useColors";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 const SUBJECT_COLORS = ["#6366F1", "#F59E0B", "#22C55E", "#EC4899", "#3B82F6", "#EF4444", "#8B5CF6"];
 
 function getSubjectColor(code: string) {
@@ -29,12 +28,17 @@ export default function TimetableScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { timetable } = useAppData();
+  const { getStudentTimetable } = useAppData();
   const todayIdx = new Date().getDay() === 0 ? 5 : Math.min(new Date().getDay() - 1, 5);
   const [selectedDay, setSelectedDay] = useState(todayIdx);
 
-  const classes = timetable
-    .filter((t) => t.day === DAYS[selectedDay] && t.batch === user?.batch)
+  const allClasses = getStudentTimetable(
+    user?.year ?? "",
+    user?.branch ?? "",
+    user?.section ?? ""
+  );
+  const classes = allClasses
+    .filter((t) => t.day === DAYS[selectedDay])
     .sort((a, b) => a.time.localeCompare(b.time));
 
   return (
@@ -73,12 +77,20 @@ export default function TimetableScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.dayLabel, { color: colors.foreground }]}>
-          {DAYS[selectedDay]}
-          {selectedDay === todayIdx && (
-            <Text style={{ color: colors.accent }}> · Today</Text>
+        <View style={styles.dayHeader}>
+          <Text style={[styles.dayLabel, { color: colors.foreground }]}>
+            {DAYS[selectedDay]}
+            {selectedDay === todayIdx && <Text style={{ color: colors.accent }}> · Today</Text>}
+          </Text>
+          {user?.year && user?.branch && (
+            <View style={[styles.filterBadge, { backgroundColor: colors.secondary }]}>
+              <Feather name="filter" size={11} color={colors.mutedForeground} />
+              <Text style={[styles.filterText, { color: colors.mutedForeground }]}>
+                {user.year} Yr · {user.branch} · Sec {user.section}
+              </Text>
+            </View>
           )}
-        </Text>
+        </View>
 
         {classes.length === 0 ? (
           <View style={styles.emptyState}>
@@ -90,7 +102,7 @@ export default function TimetableScreen() {
           </View>
         ) : (
           <View style={styles.classList}>
-            {classes.map((cls, idx) => {
+            {classes.map((cls) => {
               const subColor = getSubjectColor(cls.subjectCode);
               return (
                 <View key={cls.id} style={styles.classRow}>
@@ -98,12 +110,7 @@ export default function TimetableScreen() {
                     <Text style={[styles.timeText, { color: colors.primary }]}>{cls.time}</Text>
                     <View style={[styles.timeLine, { backgroundColor: colors.border }]} />
                   </View>
-                  <View
-                    style={[
-                      styles.classCard,
-                      { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: subColor },
-                    ]}
-                  >
+                  <View style={[styles.classCard, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: subColor }]}>
                     <View style={styles.cardHeader}>
                       <View style={[styles.subjectDot, { backgroundColor: subColor + "22" }]}>
                         <Text style={[styles.subjectCodeText, { color: subColor }]}>{cls.subjectCode}</Text>
@@ -133,19 +140,16 @@ export default function TimetableScreen() {
 }
 
 const styles = StyleSheet.create({
-  daySelector: {
-    borderBottomWidth: 1,
-    paddingTop: Platform.OS === "web" ? 8 : 0,
-  },
+  daySelector: { borderBottomWidth: 1, paddingTop: Platform.OS === "web" ? 8 : 0 },
   daySelectorContent: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
-  dayChip: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    alignItems: "center", justifyContent: "center", gap: 4,
-  },
+  dayChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, alignItems: "center", justifyContent: "center", gap: 4 },
   dayChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   todayDot: { width: 5, height: 5, borderRadius: 3 },
   scroll: { paddingHorizontal: 20 },
-  dayLabel: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 20 },
+  dayHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  dayLabel: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  filterBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  filterText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   emptySubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
@@ -154,13 +158,7 @@ const styles = StyleSheet.create({
   timeline: { width: 52, alignItems: "center", gap: 6 },
   timeText: { fontSize: 12, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   timeLine: { flex: 1, width: 2, borderRadius: 1 },
-  classCard: {
-    flex: 1, borderRadius: 16, padding: 14,
-    borderWidth: 1, borderLeftWidth: 4,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
-    gap: 8,
-  },
+  classCard: { flex: 1, borderRadius: 16, padding: 14, borderWidth: 1, borderLeftWidth: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, gap: 8 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   subjectDot: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   subjectCodeText: { fontSize: 11, fontFamily: "Inter_700Bold" },

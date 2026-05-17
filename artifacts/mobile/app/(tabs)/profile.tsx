@@ -12,21 +12,26 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import DropdownPicker from "@/components/DropdownPicker";
+import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL } from "@/constants/academia";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, logout, updateProfile } = useAuth();
-  const colorScheme = useColorScheme();
   const [editModal, setEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ phone: user?.phone ?? "", department: user?.department ?? "" });
+  const [editForm, setEditForm] = useState({
+    phone: user?.phone ?? "",
+    section: user?.section ?? "",
+    year: user?.year ?? "",
+    branch: user?.branch ?? "",
+  });
 
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
@@ -39,14 +44,7 @@ export default function ProfileScreen() {
     } else {
       Alert.alert("Sign Out", "Are you sure you want to sign out?", [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-            router.replace("/login");
-          },
-        },
+        { text: "Sign Out", style: "destructive", onPress: async () => { await logout(); router.replace("/login"); } },
       ]);
     }
   };
@@ -57,24 +55,24 @@ export default function ProfileScreen() {
     setEditModal(false);
   };
 
-  const infoItems = [
-    { label: "Enrollment No.", value: user?.enrollmentNo ?? "—", icon: "hash" },
-    { label: "Batch", value: user?.batch ?? "—", icon: "users" },
-    { label: "Department", value: user?.department ?? "—", icon: "book" },
-    { label: "Phone", value: user?.phone ?? "—", icon: "phone" },
-    { label: "Join Year", value: user?.joinYear ?? "—", icon: "calendar" },
+  const personalInfo = [
+    { label: "Email",         value: user?.email ?? "—",              icon: "mail"     },
+    { label: "Phone",         value: user?.phone ?? "—",              icon: "phone"    },
+    { label: "Roll Number",   value: user?.rollNumber ?? user?.enrollmentNo ?? "—", icon: "hash" },
+  ];
+
+  const academicInfo = [
+    { label: "Year",          value: user?.year ? `${user.year} Year` : "—",                         icon: "calendar" },
+    { label: "Branch",        value: user?.branch ? `${user.branch} – ${BRANCH_FULL[user.branch] ?? ""}` : "—", icon: "book" },
+    { label: "Section",       value: user?.section ? `Section ${user.section}` : "—",               icon: "users"    },
+    { label: "Department",    value: user?.department ?? "—",                                         icon: "layers"   },
+    { label: "Join Year",     value: user?.joinYear ?? "—",                                           icon: "clock"    },
   ];
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[
-        styles.scroll,
-        {
-          paddingBottom: insets.bottom + 100,
-          paddingTop: Platform.OS === "web" ? 20 : 16,
-        },
-      ]}
+      contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100, paddingTop: Platform.OS === "web" ? 20 : 16 }]}
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.profileCard, { backgroundColor: colors.primary }]}>
@@ -83,16 +81,53 @@ export default function ProfileScreen() {
         </View>
         <Text style={styles.userName}>{user?.name}</Text>
         <Text style={styles.userEmail}>{user?.email}</Text>
+        {user?.role === "student" && user?.year && user?.branch && (
+          <View style={styles.badgeRow}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{user.year} Year</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{user.branch}</Text>
+            </View>
+            {user.section && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>Sec {user.section}</Text>
+              </View>
+            )}
+          </View>
+        )}
         <View style={[styles.roleBadge, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
           <Feather name={user?.role === "admin" ? "shield" : "user"} size={12} color="#fff" />
-          <Text style={styles.roleText}>{user?.role === "admin" ? "Administrator" : "Student"}</Text>
+          <Text style={styles.roleText}>{user?.role === "admin" ? "Administrator" : "B.Tech Student"}</Text>
         </View>
       </View>
+
+      {user?.role === "student" && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ACADEMIC DETAILS</Text>
+          <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {academicInfo.map((item, idx) => (
+              <View key={item.label}>
+                <View style={styles.infoRow}>
+                  <View style={[styles.infoIcon, { backgroundColor: colors.secondary }]}>
+                    <Feather name={item.icon as "hash"} size={14} color={colors.mutedForeground} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{item.label}</Text>
+                    <Text style={[styles.infoValue, { color: colors.foreground }]}>{item.value}</Text>
+                  </View>
+                </View>
+                {idx < academicInfo.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PERSONAL INFORMATION</Text>
         <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {infoItems.map((item, idx) => (
+          {personalInfo.map((item, idx) => (
             <View key={item.label}>
               <View style={styles.infoRow}>
                 <View style={[styles.infoIcon, { backgroundColor: colors.secondary }]}>
@@ -103,7 +138,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.infoValue, { color: colors.foreground }]}>{item.value}</Text>
                 </View>
               </View>
-              {idx < infoItems.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+              {idx < personalInfo.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
             </View>
           ))}
         </View>
@@ -115,14 +150,14 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.actionRow}
             onPress={() => {
-              setEditForm({ phone: user?.phone ?? "", department: user?.department ?? "" });
+              setEditForm({ phone: user?.phone ?? "", section: user?.section ?? "", year: user?.year ?? "", branch: user?.branch ?? "" });
               setEditModal(true);
             }}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.primary + "18" }]}>
               <Feather name="edit-2" size={16} color={colors.primary} />
             </View>
-            <Text style={[styles.actionText, { color: colors.foreground }]}>Edit Contact Info</Text>
+            <Text style={[styles.actionText, { color: colors.foreground }]}>Edit Profile</Text>
             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -138,16 +173,16 @@ export default function ProfileScreen() {
 
       <Modal visible={editModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditModal(false)}>
         <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <Pressable onPress={() => setEditModal(false)}>
-              <Text style={[styles.modalCancel, { color: colors.mutedForeground }]}>Cancel</Text>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>Cancel</Text>
             </Pressable>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Edit Profile</Text>
+            <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Edit Profile</Text>
             <Pressable onPress={handleSaveProfile}>
-              <Text style={[styles.modalSave, { color: colors.primary }]}>Save</Text>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.primary }}>Save</Text>
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={styles.modalFields}>
+          <ScrollView contentContainerStyle={styles.modalFields} keyboardShouldPersistTaps="handled">
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Phone</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
@@ -162,19 +197,40 @@ export default function ProfileScreen() {
                 />
               </View>
             </View>
-            <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Department</Text>
-              <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
-                <Feather name="book" size={16} color={colors.mutedForeground} />
-                <TextInput
-                  style={[styles.input, { color: colors.foreground }]}
-                  value={editForm.department}
-                  onChangeText={(v) => setEditForm((p) => ({ ...p, department: v }))}
-                  placeholder="Your department"
-                  placeholderTextColor={colors.mutedForeground}
-                />
-              </View>
-            </View>
+            {user?.role === "student" && (
+              <>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Year</Text>
+                  <DropdownPicker
+                    label="Select Year"
+                    value={editForm.year}
+                    options={YEARS}
+                    onSelect={(v) => setEditForm((p) => ({ ...p, year: v }))}
+                    icon="calendar"
+                  />
+                </View>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Branch</Text>
+                  <DropdownPicker
+                    label="Select Branch"
+                    value={editForm.branch}
+                    options={BRANCHES}
+                    onSelect={(v) => setEditForm((p) => ({ ...p, branch: v }))}
+                    icon="book"
+                  />
+                </View>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Section</Text>
+                  <DropdownPicker
+                    label="Select Section"
+                    value={editForm.section}
+                    options={SECTIONS}
+                    onSelect={(v) => setEditForm((p) => ({ ...p, section: v }))}
+                    icon="users"
+                  />
+                </View>
+              </>
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -184,24 +240,15 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20 },
-  profileCard: {
-    borderRadius: 24, padding: 28, alignItems: "center", gap: 8, marginBottom: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12, shadowRadius: 12, elevation: 6,
-  },
-  avatarCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center", justifyContent: "center",
-    marginBottom: 4,
-  },
+  profileCard: { borderRadius: 24, padding: 28, alignItems: "center", gap: 8, marginBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
+  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", marginBottom: 4 },
   avatarText: { color: "#fff", fontSize: 28, fontFamily: "Inter_700Bold" },
   userName: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold" },
   userEmail: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Inter_400Regular" },
-  roleBadge: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: 4,
-  },
+  badgeRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap", justifyContent: "center" },
+  badge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  badgeText: { color: "#fff", fontSize: 12, fontFamily: "Inter_500Medium" },
+  roleBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: 4 },
   roleText: { color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium" },
   section: { gap: 8, marginBottom: 20 },
   sectionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 1 },
@@ -209,28 +256,17 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
   infoIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   infoLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 1 },
-  infoValue: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  infoValue: { fontSize: 14, fontFamily: "Inter_500Medium" },
   divider: { height: 1, marginLeft: 64 },
   actionCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  actionRow: {
-    flexDirection: "row", alignItems: "center", gap: 14, padding: 14,
-  },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
   actionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   actionText: { fontSize: 15, fontFamily: "Inter_500Medium", flex: 1 },
   modalContent: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    padding: 20, borderBottomWidth: 1,
-  },
-  modalCancel: { fontSize: 16, fontFamily: "Inter_400Regular" },
-  modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  modalSave: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  modalFields: { padding: 24, gap: 20 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1 },
+  modalFields: { padding: 24, gap: 16 },
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  inputRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
-  },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13 },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
 });
