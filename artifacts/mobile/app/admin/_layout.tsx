@@ -26,6 +26,7 @@ export default function AdminLayout() {
       <Stack.Screen name="students" options={{ title: "Manage Students" }} />
       <Stack.Screen name="timetable" options={{ title: "Update Timetable" }} />
       <Stack.Screen name="send-notification" options={{ title: "Send Notification" }} />
+      <Stack.Screen name="bulk-upload" options={{ title: "Bulk Upload" }} />
     </Stack>
   );
 }

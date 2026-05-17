@@ -56,6 +56,13 @@ export default function AdminDashboard() {
       route: "/admin/send-notification",
       color: "#EC4899",
     },
+    {
+      icon: "upload-cloud",
+      label: "Bulk Upload",
+      description: "Upload PDF/CSV marks for a class",
+      route: "/admin/bulk-upload",
+      color: "#8B5CF6",
+    },
   ];
 
   const stats = [
