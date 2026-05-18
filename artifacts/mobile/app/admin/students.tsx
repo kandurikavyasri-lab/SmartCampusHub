@@ -37,16 +37,16 @@ export default function ManageStudentsScreen() {
   useEffect(() => { loadStudents(); }, []);
 
   async function loadStudents() {
-    const raw = await AsyncStorage.getItem("users");
+    const raw = await AsyncStorage.getItem("users_v2");
     const users: User[] = raw ? JSON.parse(raw) : [];
     setStudents(users.filter((u) => u.role === "student"));
   }
 
   async function saveUsers(updated: User[]) {
-    const raw = await AsyncStorage.getItem("users");
+    const raw = await AsyncStorage.getItem("users_v2");
     const all: User[] = raw ? JSON.parse(raw) : [];
     const admins = all.filter((u) => u.role === "admin");
-    await AsyncStorage.setItem("users", JSON.stringify([...admins, ...updated]));
+    await AsyncStorage.setItem("users_v2", JSON.stringify([...admins, ...updated]));
   }
 
   const openAdd = () => {
@@ -97,6 +97,8 @@ export default function ManageStudentsScreen() {
         batch: `${form.year}-${form.branch}`,
         department: BRANCH_FULL[form.branch] ?? form.branch,
         enrollmentNo: form.rollNumber,
+        hallTicketNumber: form.rollNumber,
+        academicYear: "2024-25",
         ...form,
       };
       updated = [...students, newStudent];

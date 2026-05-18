@@ -339,17 +339,24 @@ export default function BulkUploadScreen() {
             });
           }
         } else {
+          const semGpa = rec.gpa ?? 0;
           await addSemesterResult({
             studentId: rec.rollNumber,
             semester: parseResult.semester || parseInt(semester),
-            gpa: rec.gpa ?? 0,
-            grade: rec.gpa ? (rec.gpa >= 9 ? "O" : rec.gpa >= 8 ? "A+" : rec.gpa >= 7 ? "A" : rec.gpa >= 6 ? "B+" : "B") : "—",
+            sgpa: semGpa,
+            cgpa: semGpa,
+            gpa: semGpa,
+            grade: semGpa >= 9 ? "O" : semGpa >= 8 ? "A+" : semGpa >= 7 ? "A" : semGpa >= 6 ? "B+" : semGpa >= 5 ? "B" : semGpa >= 4 ? "C" : "F",
             subjects: rec.subjects.map((s) => ({
               code: s.name.slice(0, 8).toUpperCase(),
               name: s.name,
-              marks: s.total ?? 0,
+              internalMarks: Math.round((s.total ?? 0) * 0.25),
+              externalMarks: Math.round((s.total ?? 0) * 0.75),
+              totalMarks: s.total ?? 0,
               maxMarks: 100,
               grade: s.grade ?? "—",
+              gradePoints: s.grade === "O" ? 10 : s.grade === "A+" ? 9 : s.grade === "A" ? 8 : s.grade === "B+" ? 7 : s.grade === "B" ? 6 : s.grade === "C" ? 5 : s.grade === "P" ? 4 : 0,
+              credits: 3,
             })),
           });
         }

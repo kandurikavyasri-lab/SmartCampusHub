@@ -15,50 +15,53 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
-import { useAppData, SyllabusItem } from "@/context/AppDataContext";
+import { useAppData } from "@/context/AppDataContext";
 import { useColors } from "@/hooks/useColors";
 
 type Tab = "midmarks" | "results" | "syllabus" | "gpacalc";
 
-// 10-point GPA scale (Indian university standard)
-const GRADE_POINTS: { grade: string; points: number; range: string; color: string }[] = [
-  { grade: "O",  points: 10, range: "90–100", color: "#22C55E" },
-  { grade: "A+", points: 9,  range: "80–89",  color: "#16A34A" },
-  { grade: "A",  points: 8,  range: "70–79",  color: "#3B82F6" },
-  { grade: "B+", points: 7,  range: "60–69",  color: "#6366F1" },
-  { grade: "B",  points: 6,  range: "55–59",  color: "#F59E0B" },
-  { grade: "C",  points: 5,  range: "50–54",  color: "#F97316" },
-  { grade: "F",  points: 0,  range: "< 50",   color: "#EF4444" },
+// ─── Indian 10-point grading scale ───────────────────────────────────────────
+
+const GRADE_POINTS: { grade: string; points: number; range: string; color: string; label: string }[] = [
+  { grade: "O",  points: 10, range: "≥ 90",  color: "#22C55E", label: "Outstanding"   },
+  { grade: "A+", points: 9,  range: "80–89",  color: "#16A34A", label: "Excellent"     },
+  { grade: "A",  points: 8,  range: "70–79",  color: "#3B82F6", label: "Very Good"     },
+  { grade: "B+", points: 7,  range: "60–69",  color: "#6366F1", label: "Good"          },
+  { grade: "B",  points: 6,  range: "55–59",  color: "#F59E0B", label: "Above Average" },
+  { grade: "C",  points: 5,  range: "50–54",  color: "#F97316", label: "Average"       },
+  { grade: "P",  points: 4,  range: "40–49",  color: "#94A3B8", label: "Pass"          },
+  { grade: "F",  points: 0,  range: "< 40",   color: "#EF4444", label: "Fail"          },
 ];
 
-function gradeColor(points: number) {
-  if (points >= 9) return "#22C55E";
-  if (points >= 8) return "#3B82F6";
-  if (points >= 7) return "#6366F1";
-  if (points >= 6) return "#F59E0B";
-  if (points >= 5) return "#F97316";
-  return "#EF4444";
+function gpToGrade(gp: number): string {
+  if (gp >= 10) return "O";
+  if (gp >= 9)  return "A+";
+  if (gp >= 8)  return "A";
+  if (gp >= 7)  return "B+";
+  if (gp >= 6)  return "B";
+  if (gp >= 5)  return "C";
+  if (gp >= 4)  return "P";
+  return "F";
 }
 
-function cgpaLabel(cgpa: number) {
-  if (cgpa >= 9) return "Outstanding";
-  if (cgpa >= 8) return "Excellent";
-  if (cgpa >= 7) return "Very Good";
-  if (cgpa >= 6) return "Good";
-  if (cgpa >= 5) return "Average";
-  return "Below Average";
+function gradeColor(gp: number) {
+  const g = GRADE_POINTS.find((x) => x.points <= gp && (gp < x.points + 1 || x.points === 10));
+  return g?.color ?? "#EF4444";
 }
 
-interface CalcSubject {
-  id: string;
-  name: string;
-  code: string;
-  credits: number;
-  gradePoints: number | null;
+function sgpaLabel(sgpa: number) {
+  if (sgpa >= 9.5) return "Outstanding";
+  if (sgpa >= 9)   return "Excellent";
+  if (sgpa >= 8)   return "Very Good";
+  if (sgpa >= 7)   return "Good";
+  if (sgpa >= 6)   return "Above Average";
+  if (sgpa >= 5)   return "Average";
+  if (sgpa >= 4)   return "Pass";
+  return "Below Pass";
 }
 
 function GradeChip({ grade, colors }: { grade: string; colors: ReturnType<typeof import("@/hooks/useColors").useColors> }) {
-  const map: Record<string, string> = { A: "#22C55E", "A-": "#22C55E", "A+": "#22C55E", O: "#22C55E", B: "#3B82F6", "B+": "#6366F1", C: "#F59E0B", D: "#EF4444", F: "#EF4444" };
+  const map: Record<string, string> = { O: "#22C55E", "A+": "#16A34A", A: "#3B82F6", "B+": "#6366F1", B: "#F59E0B", C: "#F97316", P: "#94A3B8", F: "#EF4444" };
   const c = map[grade] ?? "#6B7280";
   return (
     <View style={{ backgroundColor: c + "20", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 }}>
@@ -76,153 +79,124 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   );
 }
 
-// ─── GPA Calculator Tab ────────────────────────────────────────────────────
-function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/useColors").useColors> }) {
+// ─── GPA / SGPA Calculator ────────────────────────────────────────────────────
+
+interface CalcSubject { id: string; name: string; code: string; credits: number; gradePoints: number | null }
+
+function SGPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/useColors").useColors> }) {
   const { getStudentSyllabus } = useAppData();
-  const { user: gpuUser } = useAuth();
-  const filteredSyllabus = getStudentSyllabus(gpuUser?.year ?? "", gpuUser?.branch ?? "");
+  const { user } = useAuth();
+  const filteredSyllabus = getStudentSyllabus(user?.year ?? "", user?.branch ?? "");
   const insets = useSafeAreaInsets();
 
   const [subjects, setSubjects] = useState<CalcSubject[]>(() =>
-    filteredSyllabus.map((s) => ({
-      id: s.id,
-      name: s.subjectName,
-      code: s.subjectCode,
-      credits: s.credits,
-      gradePoints: null,
-    }))
+    filteredSyllabus.map((s) => ({ id: s.id, name: s.subjectName, code: s.subjectCode, credits: s.credits, gradePoints: null }))
   );
-  const [showGradeModal, setShowGradeModal] = useState(false);
-  const [activeSubjectId, setActiveSubjectId] = useState<string | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newCode, setNewCode] = useState("");
-  const [newCredits, setNewCredits] = useState("3");
-  const [showScaleModal, setShowScaleModal] = useState(false);
+  const [showGradeModal,  setShowGradeModal]  = useState(false);
+  const [activeId,        setActiveId]        = useState<string | null>(null);
+  const [showAddModal,    setShowAddModal]    = useState(false);
+  const [showScaleModal,  setShowScaleModal]  = useState(false);
+  const [newName,         setNewName]         = useState("");
+  const [newCode,         setNewCode]         = useState("");
+  const [newCredits,      setNewCredits]      = useState("3");
 
-  const assigned = subjects.filter((s) => s.gradePoints !== null);
-  const totalCredits = assigned.reduce((sum, s) => sum + s.credits, 0);
-  const weightedSum = assigned.reduce((sum, s) => sum + s.credits * (s.gradePoints ?? 0), 0);
-  const cgpa = totalCredits > 0 ? weightedSum / totalCredits : 0;
+  const assigned     = subjects.filter((s) => s.gradePoints !== null);
+  const totalCredits = assigned.reduce((s, x) => s + x.credits, 0);
+  const weightedSum  = assigned.reduce((s, x) => s + x.credits * (x.gradePoints ?? 0), 0);
+  const sgpa         = totalCredits > 0 ? weightedSum / totalCredits : 0;
+  const sgpaColor    = totalCredits > 0 ? gradeColor(sgpa) : "rgba(255,255,255,0.4)";
 
-  const openGradePicker = (id: string) => {
-    setActiveSubjectId(id);
-    setShowGradeModal(true);
-  };
-
-  const setGrade = (points: number) => {
-    setSubjects((prev) =>
-      prev.map((s) => (s.id === activeSubjectId ? { ...s, gradePoints: points } : s))
-    );
+  const openPicker = (id: string) => { setActiveId(id); setShowGradeModal(true); };
+  const setGrade   = (pts: number) => {
+    setSubjects((p) => p.map((s) => (s.id === activeId ? { ...s, gradePoints: pts } : s)));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowGradeModal(false);
   };
-
-  const clearGrade = (id: string) => {
-    setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, gradePoints: null } : s)));
-  };
-
+  const clearGrade = (id: string) => setSubjects((p) => p.map((s) => (s.id === id ? { ...s, gradePoints: null } : s)));
   const addSubject = () => {
     if (!newName.trim()) return;
     const c = parseInt(newCredits);
-    setSubjects((prev) => [
-      ...prev,
-      { id: "custom-" + Date.now(), name: newName.trim(), code: newCode.trim() || "—", credits: isNaN(c) ? 3 : c, gradePoints: null },
-    ]);
+    setSubjects((p) => [...p, { id: "c-" + Date.now(), name: newName.trim(), code: newCode.trim() || "—", credits: isNaN(c) ? 3 : c, gradePoints: null }]);
     setNewName(""); setNewCode(""); setNewCredits("3");
     setShowAddModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
-
-  const resetAll = () => {
-    setSubjects((prev) => prev.map((s) => ({ ...s, gradePoints: null })));
-  };
-
-  const cgpaColor = gradeColor(cgpa);
+  const resetAll = () => setSubjects((p) => p.map((s) => ({ ...s, gradePoints: null })));
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.calcScroll,
-          { paddingBottom: insets.bottom + 120 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* CGPA Result Card */}
+      <ScrollView contentContainerStyle={[styles.calcScroll, { paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false}>
+
+        {/* SGPA Result Card */}
         <View style={[styles.cgpaCard, { backgroundColor: colors.primary }]}>
           <View style={styles.cgpaTop}>
             <View>
-              <Text style={styles.cgpaHeading}>Your CGPA</Text>
-              <Text style={styles.cgpaScale}>10-point scale</Text>
+              <Text style={styles.cgpaHeading}>SGPA (This Semester)</Text>
+              <Text style={styles.cgpaScale}>10-point grading scale</Text>
             </View>
-            <TouchableOpacity
-              style={[styles.scaleBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]}
-              onPress={() => setShowScaleModal(true)}
-            >
+            <TouchableOpacity style={[styles.scaleBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]} onPress={() => setShowScaleModal(true)}>
               <Feather name="info" size={14} color="#fff" />
               <Text style={styles.scaleBtnText}>Grade Scale</Text>
             </TouchableOpacity>
           </View>
-
           <View style={styles.cgpaValueRow}>
             <Text style={[styles.cgpaValue, { color: totalCredits === 0 ? "rgba(255,255,255,0.3)" : "#fff" }]}>
-              {totalCredits === 0 ? "—" : cgpa.toFixed(2)}
+              {totalCredits === 0 ? "—" : sgpa.toFixed(2)}
             </Text>
             <Text style={styles.cgpaMax}>/10</Text>
           </View>
-
           {totalCredits > 0 && (
             <>
               <View style={styles.cgpaBarBg}>
-                <View style={[styles.cgpaBarFill, { width: `${(cgpa / 10) * 100}%` as "100%", backgroundColor: cgpaColor }]} />
+                <View style={[styles.cgpaBarFill, { width: `${(sgpa / 10) * 100}%` as "100%", backgroundColor: sgpaColor }]} />
               </View>
               <View style={styles.cgpaFooter}>
-                <Text style={[styles.cgpaLabel, { color: cgpaColor }]}>{cgpaLabel(cgpa)}</Text>
+                <Text style={[styles.cgpaLabel, { color: sgpaColor }]}>{sgpaLabel(sgpa)} · {gpToGrade(sgpa)}</Text>
                 <Text style={styles.cgpaCredits}>{assigned.length}/{subjects.length} subjects · {totalCredits} credits</Text>
               </View>
             </>
           )}
           {totalCredits === 0 && (
-            <Text style={styles.cgpaHint}>Assign grades to subjects below to calculate your CGPA</Text>
+            <Text style={styles.cgpaHint}>Assign grades to subjects below to calculate your SGPA</Text>
           )}
+        </View>
+
+        {/* CGPA note */}
+        <View style={[styles.cgpaNote, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="info" size={13} color={colors.mutedForeground} />
+          <Text style={[styles.cgpaNoteText, { color: colors.mutedForeground }]}>
+            CGPA is the cumulative average across all semesters. View it in the Results tab.
+          </Text>
         </View>
 
         {/* Action row */}
         <View style={styles.actionRow}>
-          <Text style={[styles.subjectsTitle, { color: colors.foreground }]}>Subjects</Text>
+          <Text style={[styles.subjectsTitle, { color: colors.foreground }]}>Subjects & Credits</Text>
           <View style={styles.actionBtns}>
             {assigned.length > 0 && (
-              <TouchableOpacity
-                style={[styles.miniBtn, { backgroundColor: colors.destructive + "18" }]}
-                onPress={resetAll}
-              >
+              <TouchableOpacity style={[styles.miniBtn, { backgroundColor: colors.destructive + "18" }]} onPress={resetAll}>
                 <Feather name="refresh-ccw" size={13} color={colors.destructive} />
                 <Text style={[styles.miniBtnText, { color: colors.destructive }]}>Reset</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.miniBtn, { backgroundColor: colors.primary + "18" }]}
-              onPress={() => setShowAddModal(true)}
-            >
+            <TouchableOpacity style={[styles.miniBtn, { backgroundColor: colors.primary + "18" }]} onPress={() => setShowAddModal(true)}>
               <Feather name="plus" size={13} color={colors.primary} />
               <Text style={[styles.miniBtnText, { color: colors.primary }]}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Subject list */}
         {subjects.map((subject) => {
           const gp = subject.gradePoints;
           const gradeInfo = GRADE_POINTS.find((g) => g.points === gp);
-          const barColor = gp !== null ? gradeColor(gp) : colors.border;
+          const barColor  = gp !== null ? gradeColor(gp) : colors.border;
           return (
             <View key={subject.id} style={[styles.subjectCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.subjectCardTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.subjectCardName, { color: colors.foreground }]}>{subject.name}</Text>
                   <Text style={[styles.subjectCardMeta, { color: colors.mutedForeground }]}>
-                    {subject.code} · {subject.credits} credits
+                    {subject.code}  ·  {subject.credits} Credits
                   </Text>
                 </View>
                 <View style={styles.subjectCardRight}>
@@ -237,11 +211,8 @@ function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/u
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity
-                      style={[styles.pickGradeBtn, { backgroundColor: colors.primary }]}
-                      onPress={() => openGradePicker(subject.id)}
-                    >
-                      <Text style={styles.pickGradeBtnText}>Pick Grade</Text>
+                    <TouchableOpacity style={[styles.pickGradeBtn, { backgroundColor: colors.primary }]} onPress={() => openPicker(subject.id)}>
+                      <Text style={styles.pickGradeBtnText}>Set Grade</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -263,22 +234,17 @@ function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/u
       <Modal visible={showGradeModal} transparent animationType="slide" onRequestClose={() => setShowGradeModal(false)}>
         <Pressable style={styles.overlay} onPress={() => setShowGradeModal(false)}>
           <View style={[styles.gradeSheet, { backgroundColor: colors.card }]}>
-            <View style={styles.sheetHandle} />
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Select Grade</Text>
             <Text style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}>
-              {subjects.find((s) => s.id === activeSubjectId)?.name}
+              {subjects.find((s) => s.id === activeId)?.name}
             </Text>
             <View style={styles.gradeGrid}>
               {GRADE_POINTS.map((g) => (
-                <TouchableOpacity
-                  key={g.grade}
-                  style={[styles.gradeOption, { backgroundColor: g.color + "18", borderColor: g.color + "40" }]}
-                  onPress={() => setGrade(g.points)}
-                  activeOpacity={0.75}
-                >
+                <TouchableOpacity key={g.grade} style={[styles.gradeOption, { backgroundColor: g.color + "18", borderColor: g.color + "40" }]} onPress={() => setGrade(g.points)} activeOpacity={0.75}>
                   <Text style={[styles.gradeOptionLabel, { color: g.color }]}>{g.grade}</Text>
                   <Text style={[styles.gradeOptionPoints, { color: g.color }]}>{g.points} pts</Text>
-                  <Text style={[styles.gradeOptionRange, { color: g.color + "AA" }]}>{g.range}</Text>
+                  <Text style={[styles.gradeOptionRange, { color: g.color + "AA" }]}>{g.range}%</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -290,33 +256,22 @@ function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/u
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <Pressable style={styles.overlay} onPress={() => setShowAddModal(false)}>
           <View style={[styles.addSheet, { backgroundColor: colors.card }]}>
-            <View style={styles.sheetHandle} />
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Add Subject</Text>
             {[
-              { label: "Subject Name *", value: newName, setter: setNewName, placeholder: "e.g. Digital Design", icon: "book" },
-              { label: "Subject Code", value: newCode, setter: setNewCode, placeholder: "e.g. EC401", icon: "hash" },
-              { label: "Credits *", value: newCredits, setter: setNewCredits, placeholder: "e.g. 3", icon: "star", numeric: true },
+              { label: "Subject Name *", value: newName,    setter: setNewName,    placeholder: "e.g. Digital Signal Processing", icon: "book"   },
+              { label: "Subject Code",   value: newCode,    setter: setNewCode,    placeholder: "e.g. EC501",                      icon: "hash"   },
+              { label: "Credits *",      value: newCredits, setter: setNewCredits, placeholder: "e.g. 4",                          icon: "star",  numeric: true },
             ].map(({ label, value, setter, placeholder, icon, numeric }) => (
               <View key={label} style={styles.addField}>
                 <Text style={[styles.addFieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
                 <View style={[styles.addFieldInput, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
                   <Feather name={icon as "book"} size={15} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.addInput, { color: colors.foreground }]}
-                    value={value}
-                    onChangeText={setter}
-                    placeholder={placeholder}
-                    placeholderTextColor={colors.mutedForeground}
-                    keyboardType={numeric ? "numeric" : "default"}
-                  />
+                  <TextInput style={[styles.addInput, { color: colors.foreground }]} value={value} onChangeText={setter} placeholder={placeholder} placeholderTextColor={colors.mutedForeground} keyboardType={numeric ? "numeric" : "default"} />
                 </View>
               </View>
             ))}
-            <TouchableOpacity
-              style={[styles.addSubjectBtn, { backgroundColor: colors.primary, opacity: newName.trim() ? 1 : 0.5 }]}
-              onPress={addSubject}
-              disabled={!newName.trim()}
-            >
+            <TouchableOpacity style={[styles.addSubjectBtn, { backgroundColor: colors.primary, opacity: newName.trim() ? 1 : 0.5 }]} onPress={addSubject} disabled={!newName.trim()}>
               <Text style={styles.addSubjectBtnText}>Add Subject</Text>
             </TouchableOpacity>
           </View>
@@ -327,9 +282,9 @@ function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/u
       <Modal visible={showScaleModal} transparent animationType="fade" onRequestClose={() => setShowScaleModal(false)}>
         <Pressable style={styles.overlay} onPress={() => setShowScaleModal(false)}>
           <View style={[styles.scaleSheet, { backgroundColor: colors.card }]}>
-            <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>10-Point Grade Scale</Text>
-            <Text style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}>CGPA = Σ(Grade Points × Credits) / Σ(Credits)</Text>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Indian 10-Point Grade Scale</Text>
+            <Text style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}>SGPA = Σ(Grade Points × Credits) ÷ Σ(Credits)</Text>
             {GRADE_POINTS.map((g) => (
               <View key={g.grade} style={[styles.scaleRow, { borderBottomColor: colors.border }]}>
                 <View style={[styles.scaleGradeBadge, { backgroundColor: g.color + "18" }]}>
@@ -337,6 +292,7 @@ function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/u
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.scaleRange, { color: colors.foreground }]}>{g.range}%</Text>
+                  <Text style={[styles.scaleRangeLabel, { color: colors.mutedForeground }]}>{g.label}</Text>
                 </View>
                 <Text style={[styles.scalePoints, { color: g.color }]}>{g.points} pts</Text>
               </View>
@@ -348,26 +304,32 @@ function GPACalculator({ colors }: { colors: ReturnType<typeof import("@/hooks/u
   );
 }
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Main Academics Screen ────────────────────────────────────────────────────
+
 export default function AcademicsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { getStudentMidMarks, getStudentResults, getStudentSyllabus: getSyllabus } = useAppData();
   const syllabus = getSyllabus(user?.year ?? "", user?.branch ?? "");
-  const [activeTab, setActiveTab] = useState<Tab>("midmarks");
+  const [activeTab,       setActiveTab]       = useState<Tab>("midmarks");
   const [expandedSyllabus, setExpandedSyllabus] = useState<string | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState(0);
+  const [selectedSemIdx,   setSelectedSemIdx]  = useState(0);
 
   const midMarks = getStudentMidMarks(user?.id ?? "");
-  const results = getStudentResults(user?.id ?? "");
-  const semesterResult = results[selectedSemester];
+  const results  = getStudentResults(user?.id ?? "");
+  const semResult = results[selectedSemIdx];
+
+  // CGPA = average of all SGPAs (weighted by credits if available)
+  const cgpa = results.length > 0
+    ? results.reduce((s, r) => s + (r.sgpa ?? r.gpa ?? 0), 0) / results.length
+    : 0;
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: "midmarks",  label: "Mid-term",  icon: "bar-chart-2"  },
-    { key: "results",   label: "Results",   icon: "award"        },
-    { key: "syllabus",  label: "Syllabus",  icon: "book-open"    },
-    { key: "gpacalc",   label: "GPA Calc",  icon: "percent"      },
+    { key: "midmarks", label: "Mid Marks", icon: "bar-chart-2" },
+    { key: "results",  label: "Results",   icon: "award"       },
+    { key: "syllabus", label: "Syllabus",  icon: "book-open"   },
+    { key: "gpacalc",  label: "SGPA Calc", icon: "percent"     },
   ];
 
   return (
@@ -376,59 +338,42 @@ export default function AcademicsScreen() {
       <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarContent}>
           {tabs.map((t) => (
-            <Pressable
-              key={t.key}
-              style={[
-                styles.tab,
-                activeTab === t.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
-              ]}
-              onPress={() => setActiveTab(t.key)}
-            >
-              <Feather
-                name={t.icon as "book"}
-                size={14}
-                color={activeTab === t.key ? colors.primary : colors.mutedForeground}
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: activeTab === t.key ? colors.primary : colors.mutedForeground },
-                ]}
-              >
-                {t.label}
-              </Text>
+            <Pressable key={t.key} style={[styles.tab, activeTab === t.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => setActiveTab(t.key)}>
+              <Feather name={t.icon as "book"} size={14} color={activeTab === t.key ? colors.primary : colors.mutedForeground} />
+              <Text style={[styles.tabText, { color: activeTab === t.key ? colors.primary : colors.mutedForeground }]}>{t.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
       </View>
 
-      {/* GPA Calc renders its own scroll */}
       {activeTab === "gpacalc" ? (
-        <GPACalculator colors={colors} />
+        <SGPACalculator colors={colors} />
       ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            styles.scroll,
-            { paddingBottom: insets.bottom + 100, paddingTop: Platform.OS === "web" ? 20 : 16 },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Mid-term marks */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100, paddingTop: 16 }]} showsVerticalScrollIndicator={false}>
+
+          {/* ── Mid Marks ── */}
           {activeTab === "midmarks" && (
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Mid-term Marks</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Mid-term Internal Marks</Text>
+              <View style={[styles.infoBox, { backgroundColor: colors.primary + "0A", borderColor: colors.primary + "25" }]}>
+                <Feather name="info" size={12} color={colors.primary} />
+                <Text style={[styles.infoBoxText, { color: colors.primary }]}>
+                  Internal assessment: Mid-1 &amp; Mid-2 (25 marks each). Best of the two counts as internal marks (25).
+                </Text>
+              </View>
               {midMarks.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Feather name="inbox" size={36} color={colors.mutedForeground} />
-                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No marks available yet</Text>
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No marks uploaded yet</Text>
                 </View>
               ) : (
                 midMarks.map((mark) => {
-                  const total = mark.midTerm1 + mark.midTerm2;
-                  const max = mark.maxMarks * 2;
-                  const pct = Math.round((total / max) * 100);
-                  const barColor = pct >= 80 ? "#22C55E" : pct >= 60 ? "#3B82F6" : "#EF4444";
+                  const internalBest = Math.max(mark.midTerm1, mark.midTerm2);
+                  const hasExternal  = mark.externalMarks !== undefined;
+                  const total        = hasExternal ? internalBest + (mark.externalMarks ?? 0) : mark.midTerm1 + mark.midTerm2;
+                  const max          = hasExternal ? mark.maxMarks + (mark.maxExternal ?? 75) : mark.maxMarks * 2;
+                  const pct          = Math.round((total / max) * 100);
+                  const barColor     = pct >= 80 ? "#22C55E" : pct >= 60 ? "#3B82F6" : pct >= 40 ? "#F59E0B" : "#EF4444";
                   return (
                     <View key={mark.id} style={[styles.markCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <View style={styles.markHeader}>
@@ -436,19 +381,31 @@ export default function AcademicsScreen() {
                           <Text style={[styles.subjectName, { color: colors.foreground }]}>{mark.subjectName}</Text>
                           <Text style={[styles.subjectCode, { color: colors.mutedForeground }]}>{mark.subjectCode}</Text>
                         </View>
-                        <Text style={[styles.totalScore, { color: barColor }]}>{total}/{max}</Text>
+                        <View style={styles.markScoreCol}>
+                          <Text style={[styles.totalScore, { color: barColor }]}>{total}/{max}</Text>
+                          <Text style={[styles.pctText, { color: barColor }]}>{pct}%</Text>
+                        </View>
                       </View>
                       <ProgressBar value={total} max={max} color={barColor} />
                       <View style={styles.midtermRow}>
-                        <View style={[styles.midtermChip, { backgroundColor: colors.secondary }]}>
-                          <Text style={[styles.midtermLabel, { color: colors.mutedForeground }]}>Mid 1</Text>
+                        <View style={[styles.midtermChip, { backgroundColor: "#6366F1" + "12" }]}>
+                          <Text style={[styles.midtermLabel, { color: "#6366F1" }]}>Mid-1</Text>
                           <Text style={[styles.midtermValue, { color: colors.foreground }]}>{mark.midTerm1}/{mark.maxMarks}</Text>
                         </View>
-                        <View style={[styles.midtermChip, { backgroundColor: colors.secondary }]}>
-                          <Text style={[styles.midtermLabel, { color: colors.mutedForeground }]}>Mid 2</Text>
+                        <View style={[styles.midtermChip, { backgroundColor: "#F59E0B" + "12" }]}>
+                          <Text style={[styles.midtermLabel, { color: "#F59E0B" }]}>Mid-2</Text>
                           <Text style={[styles.midtermValue, { color: colors.foreground }]}>{mark.midTerm2}/{mark.maxMarks}</Text>
                         </View>
-                        <Text style={[styles.pctText, { color: barColor }]}>{pct}%</Text>
+                        <View style={[styles.midtermChip, { backgroundColor: "#22C55E" + "12" }]}>
+                          <Text style={[styles.midtermLabel, { color: "#22C55E" }]}>Internal</Text>
+                          <Text style={[styles.midtermValue, { color: colors.foreground }]}>{internalBest}/{mark.maxMarks}</Text>
+                        </View>
+                        {hasExternal && (
+                          <View style={[styles.midtermChip, { backgroundColor: "#3B82F6" + "12" }]}>
+                            <Text style={[styles.midtermLabel, { color: "#3B82F6" }]}>External</Text>
+                            <Text style={[styles.midtermValue, { color: colors.foreground }]}>{mark.externalMarks}/{mark.maxExternal ?? 75}</Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                   );
@@ -457,7 +414,7 @@ export default function AcademicsScreen() {
             </View>
           )}
 
-          {/* Semester results */}
+          {/* ── Results ── */}
           {activeTab === "results" && (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Semester Results</Text>
@@ -468,42 +425,77 @@ export default function AcademicsScreen() {
                 </View>
               ) : (
                 <>
+                  {/* CGPA Banner */}
+                  <View style={[styles.cgpaBanner, { backgroundColor: colors.primary }]}>
+                    <View style={styles.cgpaBannerLeft}>
+                      <Text style={styles.cgpaBannerLabel}>Overall CGPA</Text>
+                      <Text style={styles.cgpaBannerValue}>{cgpa.toFixed(2)}</Text>
+                      <Text style={styles.cgpaBannerSub}>{sgpaLabel(cgpa)}  ·  {gpToGrade(cgpa)}  ·  {results.length} Semesters</Text>
+                    </View>
+                    <View style={[styles.cgpaBannerCircle, { borderColor: "rgba(255,255,255,0.3)" }]}>
+                      <Feather name="award" size={28} color="#fff" />
+                    </View>
+                  </View>
+
+                  {/* Semester picker */}
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.semesterPicker}>
-                    {results.map((r, i) => (
-                      <Pressable
-                        key={r.id}
-                        style={[
-                          styles.semChip,
-                          i === selectedSemester ? { backgroundColor: colors.primary } : { backgroundColor: colors.secondary },
-                        ]}
-                        onPress={() => setSelectedSemester(i)}
-                      >
-                        <Text style={[styles.semChipText, { color: i === selectedSemester ? "#fff" : colors.mutedForeground }]}>
-                          Sem {r.semester}
-                        </Text>
-                      </Pressable>
-                    ))}
+                    {results.map((r, i) => {
+                      const semSgpa = r.sgpa ?? r.gpa ?? 0;
+                      return (
+                        <Pressable
+                          key={r.id}
+                          style={[styles.semChip, i === selectedSemIdx ? { backgroundColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+                          onPress={() => setSelectedSemIdx(i)}
+                        >
+                          <Text style={[styles.semChipSem, { color: i === selectedSemIdx ? "#fff" : colors.mutedForeground }]}>Semester {r.semester}</Text>
+                          <Text style={[styles.semChipSgpa, { color: i === selectedSemIdx ? "rgba(255,255,255,0.85)" : colors.primary }]}>{semSgpa.toFixed(2)}</Text>
+                        </Pressable>
+                      );
+                    })}
                   </ScrollView>
-                  {semesterResult && (
+
+                  {/* Semester detail */}
+                  {semResult && (
                     <>
-                      <View style={[styles.gpaCard, { backgroundColor: colors.primary }]}>
-                        <View style={styles.gpaMain}>
-                          <Text style={styles.gpaLabel}>Semester GPA</Text>
-                          <Text style={styles.gpaValue}>{semesterResult.gpa.toFixed(2)}</Text>
-                          <GradeChip grade={semesterResult.grade} colors={colors} />
+                      <View style={[styles.sgpaCard, { backgroundColor: colors.primary }]}>
+                        <View style={styles.sgpaMain}>
+                          <Text style={styles.sgpaLabel}>Semester {semResult.semester} — SGPA</Text>
+                          <Text style={styles.sgpaValue}>{(semResult.sgpa ?? semResult.gpa ?? 0).toFixed(2)}</Text>
+                          <GradeChip grade={semResult.grade} colors={colors} />
                         </View>
-                        <Text style={styles.gpaSubtitle}>Semester {semesterResult.semester} · {semesterResult.subjects.length} subjects</Text>
+                        <Text style={styles.sgpaSubtitle}>{semResult.subjects.length} subjects  ·  CGPA so far: {cgpa.toFixed(2)}</Text>
                       </View>
-                      {semesterResult.subjects.map((sub) => (
-                        <View key={sub.code} style={[styles.subjectRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.subjectName, { color: colors.foreground }]}>{sub.name}</Text>
-                            <Text style={[styles.subjectCode, { color: colors.mutedForeground }]}>{sub.code}</Text>
-                          </View>
-                          <Text style={[styles.subjectMarks, { color: colors.foreground }]}>{sub.marks}/{sub.maxMarks}</Text>
-                          <GradeChip grade={sub.grade} colors={colors} />
+
+                      {/* Subject-wise marks */}
+                      <View style={[styles.subjectTable, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={[styles.tableHeader, { backgroundColor: colors.secondary }]}>
+                          <Text style={[styles.tableHeaderCell, { color: colors.mutedForeground, flex: 2 }]}>Subject</Text>
+                          <Text style={[styles.tableHeaderCell, { color: colors.mutedForeground }]}>Int.</Text>
+                          <Text style={[styles.tableHeaderCell, { color: colors.mutedForeground }]}>Ext.</Text>
+                          <Text style={[styles.tableHeaderCell, { color: colors.mutedForeground }]}>Total</Text>
+                          <Text style={[styles.tableHeaderCell, { color: colors.mutedForeground }]}>Grade</Text>
                         </View>
-                      ))}
+                        {semResult.subjects.map((sub, idx) => {
+                          const c = GRADE_POINTS.find((g) => g.grade === sub.grade)?.color ?? "#6B7280";
+                              const internal = sub.internalMarks ?? 0;
+                          const external = sub.externalMarks ?? 0;
+                          const total    = sub.totalMarks ?? (internal + external);
+                          return (
+                            <View key={sub.code} style={[styles.tableRow, { borderTopColor: colors.border, borderTopWidth: idx > 0 ? 1 : 0 }]}>
+                              <View style={{ flex: 2 }}>
+                                <Text style={[styles.tableSubjectName, { color: colors.foreground }]} numberOfLines={2}>{sub.name}</Text>
+                                <Text style={[styles.tableSubjectCode, { color: colors.mutedForeground }]}>{sub.code}</Text>
+                              </View>
+                              <Text style={[styles.tableCell, { color: colors.foreground }]}>{internal}</Text>
+                              <Text style={[styles.tableCell, { color: colors.foreground }]}>{external}</Text>
+                              <Text style={[styles.tableCell, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{total}</Text>
+                              <View style={[styles.gradeCell, { backgroundColor: c + "18" }]}>
+                                <Text style={[styles.gradeCellText, { color: c }]}>{sub.grade}</Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
                     </>
                   )}
                 </>
@@ -511,43 +503,54 @@ export default function AcademicsScreen() {
             </View>
           )}
 
-          {/* Syllabus */}
+          {/* ── Syllabus ── */}
           {activeTab === "syllabus" && (
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Syllabus</Text>
-              {syllabus.map((item: SyllabusItem) => (
-                <Pressable
-                  key={item.id}
-                  style={[styles.syllabusCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  onPress={() => setExpandedSyllabus(expandedSyllabus === item.id ? null : item.id)}
-                >
-                  <View style={styles.syllabusHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.subjectName, { color: colors.foreground }]}>{item.subjectName}</Text>
-                      <Text style={[styles.subjectCode, { color: colors.mutedForeground }]}>
-                        {item.subjectCode} · {item.credits} credits
-                      </Text>
-                    </View>
-                    <Feather
-                      name={expandedSyllabus === item.id ? "chevron-up" : "chevron-down"}
-                      size={18}
-                      color={colors.mutedForeground}
-                    />
-                  </View>
-                  {expandedSyllabus === item.id && (
-                    <View style={styles.syllabusBody}>
-                      <Text style={[styles.syllabusDesc, { color: colors.mutedForeground }]}>{item.description}</Text>
-                      <Text style={[styles.topicsTitle, { color: colors.foreground }]}>Topics covered:</Text>
-                      {item.topics.map((topic, i) => (
-                        <View key={i} style={styles.topicRow}>
-                          <View style={[styles.topicBullet, { backgroundColor: colors.accent }]} />
-                          <Text style={[styles.topicText, { color: colors.foreground }]}>{topic}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Course Syllabus</Text>
+              {syllabus.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Feather name="book" size={36} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No syllabus available</Text>
+                </View>
+              ) : (
+                syllabus.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.syllabusCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => { setExpandedSyllabus(expandedSyllabus === item.id ? null : item.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.syllabusHeader}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.syllabusCodeRow}>
+                          <View style={[styles.codeTag, { backgroundColor: colors.primary + "15" }]}>
+                            <Text style={[styles.codeTagText, { color: colors.primary }]}>{item.subjectCode}</Text>
+                          </View>
+                          <View style={[styles.creditsTag, { backgroundColor: colors.secondary }]}>
+                            <Text style={[styles.creditsTagText, { color: colors.mutedForeground }]}>{item.credits} Credits</Text>
+                          </View>
                         </View>
-                      ))}
+                        <Text style={[styles.syllabusName, { color: colors.foreground }]}>{item.subjectName}</Text>
+                        <Text style={[styles.syllabusDesc, { color: colors.mutedForeground }]} numberOfLines={expandedSyllabus === item.id ? 10 : 1}>{item.description}</Text>
+                      </View>
+                      <Feather name={expandedSyllabus === item.id ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
                     </View>
-                  )}
-                </Pressable>
-              ))}
+                    {expandedSyllabus === item.id && (
+                      <View style={[styles.topicsList, { borderTopColor: colors.border }]}>
+                        <Text style={[styles.topicsHeading, { color: colors.mutedForeground }]}>UNITS / TOPICS</Text>
+                        {item.topics.map((topic, i) => (
+                          <View key={i} style={styles.topicRow}>
+                            <View style={[styles.topicNum, { backgroundColor: colors.primary + "15" }]}>
+                              <Text style={[styles.topicNumText, { color: colors.primary }]}>{i + 1}</Text>
+                            </View>
+                            <Text style={[styles.topicText, { color: colors.foreground }]}>{topic}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
         </ScrollView>
@@ -557,156 +560,136 @@ export default function AcademicsScreen() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    borderBottomWidth: 1,
-    paddingTop: Platform.OS === "web" ? 8 : 0,
-  },
+  tabBar: { borderBottomWidth: 1 },
   tabBarContent: { paddingHorizontal: 4 },
-  tab: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 5, paddingHorizontal: 16, paddingVertical: 13,
-  },
+  tab: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 13 },
   tabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  scroll: { paddingHorizontal: 20 },
-  section: { gap: 12 },
-  sectionTitle: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 4 },
-
-  // GPA Calc
-  calcScroll: { paddingHorizontal: 20, paddingTop: Platform.OS === "web" ? 20 : 16 },
-  cgpaCard: {
-    borderRadius: 24, padding: 22, gap: 14, marginBottom: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12, shadowRadius: 12, elevation: 6,
-  },
-  cgpaTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  cgpaHeading: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Inter_400Regular" },
-  cgpaScale: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  scaleBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  scroll: { paddingHorizontal: 16 },
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderWidth: 1, borderRadius: 10, padding: 10 },
+  infoBoxText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
+  emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
+  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  // Mid marks
+  markCard: { borderRadius: 14, padding: 14, borderWidth: 1, gap: 10 },
+  markHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  subjectName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  subjectCode: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  markScoreCol: { alignItems: "flex-end" },
+  totalScore: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  pctText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  progressBg: { height: 6, backgroundColor: "#e5e7eb", borderRadius: 3, overflow: "hidden" },
+  progressFill: { height: 6, borderRadius: 3 },
+  midtermRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  midtermChip: { flex: 1, minWidth: 60, alignItems: "center", borderRadius: 10, paddingVertical: 8 },
+  midtermLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  midtermValue: { fontSize: 14, fontFamily: "Inter_700Bold", marginTop: 2 },
+  // Results
+  cgpaBanner: { borderRadius: 18, padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  cgpaBannerLeft: { gap: 4 },
+  cgpaBannerLabel: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular" },
+  cgpaBannerValue: { color: "#fff", fontSize: 40, fontFamily: "Inter_700Bold" },
+  cgpaBannerSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontFamily: "Inter_500Medium" },
+  cgpaBannerCircle: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  semesterPicker: { gap: 8, paddingVertical: 4, paddingBottom: 8 },
+  semChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, alignItems: "center", minWidth: 90 },
+  semChipSem: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  semChipSgpa: { fontSize: 16, fontFamily: "Inter_700Bold", marginTop: 2 },
+  sgpaCard: { borderRadius: 14, padding: 18, gap: 8 },
+  sgpaMain: { flexDirection: "row", alignItems: "center", gap: 14 },
+  sgpaLabel: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular" },
+  sgpaValue: { color: "#fff", fontSize: 32, fontFamily: "Inter_700Bold", flex: 1 },
+  sgpaSubtitle: { color: "rgba(255,255,255,0.65)", fontSize: 12, fontFamily: "Inter_400Regular" },
+  subjectTable: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+  tableHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, gap: 4 },
+  tableHeaderCell: { fontSize: 10, fontFamily: "Inter_600SemiBold", flex: 1, textAlign: "center" },
+  tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  tableSubjectName: { fontSize: 12, fontFamily: "Inter_600SemiBold", lineHeight: 16 },
+  tableSubjectCode: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  tableCell: { flex: 1, textAlign: "center", fontSize: 12, fontFamily: "Inter_500Medium" },
+  gradeCell: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 6, paddingVertical: 4 },
+  gradeCellText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  // Syllabus
+  syllabusCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+  syllabusHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14 },
+  syllabusCodeRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
+  codeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  codeTagText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  creditsTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  creditsTagText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  syllabusName: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
+  syllabusDesc: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  topicsList: { borderTopWidth: 1, padding: 14, gap: 8 },
+  topicsHeading: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5, marginBottom: 4 },
+  topicRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  topicNum: { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  topicNumText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  topicText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 19 },
+  // SGPA Calc
+  calcScroll: { paddingHorizontal: 16, paddingTop: 16 },
+  cgpaCard: { borderRadius: 20, padding: 22, marginBottom: 14, gap: 12 },
+  cgpaTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  cgpaHeading: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  cgpaScale: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  scaleBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   scaleBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_500Medium" },
   cgpaValueRow: { flexDirection: "row", alignItems: "flex-end", gap: 4 },
-  cgpaValue: { fontSize: 52, fontFamily: "Inter_700Bold", lineHeight: 56 },
-  cgpaMax: { color: "rgba(255,255,255,0.5)", fontSize: 22, fontFamily: "Inter_400Regular", marginBottom: 6 },
+  cgpaValue: { fontSize: 56, fontFamily: "Inter_700Bold" },
+  cgpaMax: { color: "rgba(255,255,255,0.5)", fontSize: 20, fontFamily: "Inter_400Regular", marginBottom: 8 },
   cgpaBarBg: { height: 8, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden" },
-  cgpaBarFill: { height: "100%", borderRadius: 4 },
-  cgpaFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cgpaLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  cgpaCredits: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_400Regular" },
-  cgpaHint: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
-
-  actionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginVertical: 12 },
-  subjectsTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  cgpaBarFill: { height: 8, borderRadius: 4 },
+  cgpaFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cgpaLabel: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  cgpaCredits: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  cgpaHint: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  cgpaNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", borderRadius: 12, padding: 12, borderWidth: 1, marginBottom: 14 },
+  cgpaNoteText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
+  actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  subjectsTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   actionBtns: { flexDirection: "row", gap: 8 },
-  miniBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  miniBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   miniBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-
-  subjectCard: {
-    borderRadius: 16, padding: 14, borderWidth: 1, gap: 10,
-    marginBottom: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
-  },
-  subjectCardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  subjectCard: { borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 10, gap: 10 },
+  subjectCardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
   subjectCardName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   subjectCardMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  subjectCardRight: { alignItems: "flex-end" },
+  subjectCardRight: { flexShrink: 0 },
   gradeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  gpBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, flexDirection: "row", gap: 5, alignItems: "center" },
-  gpBadgeGrade: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  gpBadgePoints: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  clearBtn: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  pickGradeBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  gpBadge: { alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  gpBadgeGrade: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  gpBadgePoints: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  clearBtn: { padding: 4 },
+  pickGradeBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   pickGradeBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   subjectBarRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  subjectBar: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
-  subjectBarFill: { height: "100%", borderRadius: 3 },
-  gpText: { fontSize: 12, fontFamily: "Inter_600SemiBold", minWidth: 30, textAlign: "right" },
-
+  subjectBar: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
+  subjectBarFill: { height: 6, borderRadius: 3 },
+  gpText: { fontSize: 12, fontFamily: "Inter_600SemiBold", minWidth: 32, textAlign: "right" },
   // Modals
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  gradeSheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 6,
-  },
-  addSheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 14,
-  },
-  scaleSheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 4,
-  },
-  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", alignSelf: "center", marginBottom: 8 },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  sheetSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 12 },
-  gradeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 },
-  gradeOption: {
-    width: "30%", borderRadius: 14, padding: 12, alignItems: "center", gap: 2,
-    borderWidth: 1,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  gradeSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 14 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  sheetSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  gradeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  gradeOption: { width: "22%", alignItems: "center", borderRadius: 12, paddingVertical: 12, borderWidth: 1, gap: 2 },
   gradeOptionLabel: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  gradeOptionPoints: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  gradeOptionPoints: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   gradeOptionRange: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  addSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 48, gap: 14 },
   addField: { gap: 6 },
-  addFieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  addFieldInput: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-  },
-  addInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
-  addSubjectBtn: { paddingVertical: 14, borderRadius: 14, alignItems: "center", marginTop: 4 },
+  addFieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  addFieldInput: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
+  addInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  addSubjectBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   addSubjectBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  scaleRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingVertical: 10, borderBottomWidth: 1,
-  },
-  scaleGradeBadge: { width: 40, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  scaleGrade: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  scaleRange: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  scaleSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 48, gap: 10 },
+  scaleRow: { flexDirection: "row", alignItems: "center", gap: 14, borderBottomWidth: 1, paddingVertical: 10 },
+  scaleGradeBadge: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  scaleGrade: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  scaleRange: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  scaleRangeLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
   scalePoints: { fontSize: 14, fontFamily: "Inter_700Bold" },
-
-  // Shared
-  markCard: {
-    borderRadius: 16, padding: 16, borderWidth: 1, gap: 12,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
-  },
-  markHeader: { flexDirection: "row", alignItems: "flex-start" },
-  subjectName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  subjectCode: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  totalScore: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  progressBg: { height: 6, backgroundColor: "#E2E8F0", borderRadius: 3, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 3 },
-  midtermRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  midtermChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: "row", gap: 4, alignItems: "center" },
-  midtermLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  midtermValue: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  pctText: { fontSize: 14, fontFamily: "Inter_700Bold", marginLeft: "auto" },
-  semesterPicker: { gap: 8, marginBottom: 4, flexDirection: "row" },
-  semChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  semChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  gpaCard: {
-    borderRadius: 20, padding: 20, gap: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
-  },
-  gpaMain: { flexDirection: "row", alignItems: "center", gap: 12 },
-  gpaLabel: { color: "rgba(255,255,255,0.7)", fontSize: 14, fontFamily: "Inter_400Regular", flex: 1 },
-  gpaValue: { color: "#fff", fontSize: 32, fontFamily: "Inter_700Bold" },
-  gpaSubtitle: { color: "rgba(255,255,255,0.65)", fontSize: 13, fontFamily: "Inter_400Regular" },
-  subjectRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 14, padding: 14, borderWidth: 1,
-  },
-  subjectMarks: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  syllabusCard: {
-    borderRadius: 16, padding: 16, borderWidth: 1,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
-  },
-  syllabusHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  syllabusBody: { marginTop: 12, gap: 8 },
-  syllabusDesc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  topicsTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 4 },
-  topicRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  topicBullet: { width: 5, height: 5, borderRadius: 3 },
-  topicText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
-  emptyState: { alignItems: "center", paddingVertical: 40, gap: 10 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  subjectRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, padding: 12, borderWidth: 1 },
 });

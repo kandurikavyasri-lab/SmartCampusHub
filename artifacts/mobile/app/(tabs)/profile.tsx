@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL } from "@/constants/academia";
+import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL, ACADEMIC_YEARS } from "@/constants/academia";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -27,15 +27,29 @@ export default function ProfileScreen() {
   const { user, logout, updateProfile } = useAuth();
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
-    phone: user?.phone ?? "",
-    section: user?.section ?? "",
-    year: user?.year ?? "",
-    branch: user?.branch ?? "",
+    phone:            user?.phone            ?? "",
+    section:          user?.section          ?? "",
+    year:             user?.year             ?? "",
+    branch:           user?.branch           ?? "",
+    hallTicketNumber: user?.hallTicketNumber ?? "",
+    academicYear:     user?.academicYear     ?? "2024-25",
   });
 
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
     : "?";
+
+  const openEdit = () => {
+    setEditForm({
+      phone:            user?.phone            ?? "",
+      section:          user?.section          ?? "",
+      year:             user?.year             ?? "",
+      branch:           user?.branch           ?? "",
+      hallTicketNumber: user?.hallTicketNumber ?? "",
+      academicYear:     user?.academicYear     ?? "2024-25",
+    });
+    setEditModal(true);
+  };
 
   const handleLogout = () => {
     if (Platform.OS === "web") {
@@ -55,18 +69,20 @@ export default function ProfileScreen() {
     setEditModal(false);
   };
 
-  const personalInfo = [
-    { label: "Email",         value: user?.email ?? "—",              icon: "mail"     },
-    { label: "Phone",         value: user?.phone ?? "—",              icon: "phone"    },
-    { label: "Roll Number",   value: user?.rollNumber ?? user?.enrollmentNo ?? "—", icon: "hash" },
-  ];
+  const academicInfo = user?.role === "student" ? [
+    { label: "Roll Number",       value: user?.rollNumber ?? "—",                                               icon: "hash"      },
+    { label: "Hall Ticket No.",   value: user?.hallTicketNumber || user?.rollNumber || "—",                    icon: "credit-card" },
+    { label: "Year of Study",     value: user?.year ? `${user.year} Year (B.Tech)` : "—",                      icon: "book"      },
+    { label: "Branch",            value: user?.branch ? `${user.branch} – ${BRANCH_FULL[user.branch] ?? ""}` : "—", icon: "layers" },
+    { label: "Section",           value: user?.section ? `Section ${user.section}` : "—",                     icon: "users"     },
+    { label: "Academic Year",     value: user?.academicYear ?? "—",                                             icon: "calendar"  },
+    { label: "Admitted",          value: user?.joinYear ? `${user.joinYear}` : "—",                            icon: "clock"     },
+    { label: "Department",        value: user?.department ?? (user?.branch ? BRANCH_FULL[user.branch] : "—"),   icon: "grid"      },
+  ] : [];
 
-  const academicInfo = [
-    { label: "Year",          value: user?.year ? `${user.year} Year` : "—",                         icon: "calendar" },
-    { label: "Branch",        value: user?.branch ? `${user.branch} – ${BRANCH_FULL[user.branch] ?? ""}` : "—", icon: "book" },
-    { label: "Section",       value: user?.section ? `Section ${user.section}` : "—",               icon: "users"    },
-    { label: "Department",    value: user?.department ?? "—",                                         icon: "layers"   },
-    { label: "Join Year",     value: user?.joinYear ?? "—",                                           icon: "clock"    },
+  const personalInfo = [
+    { label: "Email",   value: user?.email ?? "—", icon: "mail"  },
+    { label: "Mobile",  value: user?.phone ?? "—", icon: "phone" },
   ];
 
   return (
@@ -75,12 +91,14 @@ export default function ProfileScreen() {
       contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100, paddingTop: Platform.OS === "web" ? 20 : 16 }]}
       showsVerticalScrollIndicator={false}
     >
+      {/* Profile Hero Card */}
       <View style={[styles.profileCard, { backgroundColor: colors.primary }]}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
         <Text style={styles.userName}>{user?.name}</Text>
         <Text style={styles.userEmail}>{user?.email}</Text>
+
         {user?.role === "student" && user?.year && user?.branch && (
           <View style={styles.badgeRow}>
             <View style={styles.badge}>
@@ -91,18 +109,34 @@ export default function ProfileScreen() {
             </View>
             {user.section && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>Sec {user.section}</Text>
+                <Text style={styles.badgeText}>Section {user.section}</Text>
+              </View>
+            )}
+            {user.academicYear && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>AY {user.academicYear}</Text>
               </View>
             )}
           </View>
         )}
+
+        {/* Hall Ticket strip */}
+        {user?.role === "student" && (user?.hallTicketNumber || user?.rollNumber) && (
+          <View style={styles.htStrip}>
+            <Feather name="credit-card" size={12} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.htLabel}>Hall Ticket / Roll No.:</Text>
+            <Text style={styles.htValue}>{user.hallTicketNumber || user.rollNumber}</Text>
+          </View>
+        )}
+
         <View style={[styles.roleBadge, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
           <Feather name={user?.role === "admin" ? "shield" : "user"} size={12} color="#fff" />
           <Text style={styles.roleText}>{user?.role === "admin" ? "Administrator" : "B.Tech Student"}</Text>
         </View>
       </View>
 
-      {user?.role === "student" && (
+      {/* Academic Details */}
+      {user?.role === "student" && academicInfo.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ACADEMIC DETAILS</Text>
           <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -124,14 +158,15 @@ export default function ProfileScreen() {
         </View>
       )}
 
+      {/* Personal Info */}
       <View style={styles.section}>
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PERSONAL INFORMATION</Text>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>CONTACT INFORMATION</Text>
         <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {personalInfo.map((item, idx) => (
             <View key={item.label}>
               <View style={styles.infoRow}>
                 <View style={[styles.infoIcon, { backgroundColor: colors.secondary }]}>
-                  <Feather name={item.icon as "hash"} size={14} color={colors.mutedForeground} />
+                  <Feather name={item.icon as "mail"} size={14} color={colors.mutedForeground} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{item.label}</Text>
@@ -144,16 +179,11 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Account Actions */}
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ACCOUNT</Text>
         <View style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={styles.actionRow}
-            onPress={() => {
-              setEditForm({ phone: user?.phone ?? "", section: user?.section ?? "", year: user?.year ?? "", branch: user?.branch ?? "" });
-              setEditModal(true);
-            }}
-          >
+          <TouchableOpacity style={styles.actionRow} onPress={openEdit}>
             <View style={[styles.actionIcon, { backgroundColor: colors.primary + "18" }]}>
               <Feather name="edit-2" size={16} color={colors.primary} />
             </View>
@@ -171,6 +201,7 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Edit Modal */}
       <Modal visible={editModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditModal(false)}>
         <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
@@ -183,42 +214,77 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.modalFields} keyboardShouldPersistTaps="handled">
+            {/* Phone */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Phone</Text>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Mobile Number</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
                 <Feather name="phone" size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
                   value={editForm.phone}
                   onChangeText={(v) => setEditForm((p) => ({ ...p, phone: v }))}
-                  placeholder="Contact number"
+                  placeholder="+91 XXXXX XXXXX"
                   placeholderTextColor={colors.mutedForeground}
                   keyboardType="phone-pad"
                 />
               </View>
             </View>
+
             {user?.role === "student" && (
               <>
+                {/* Hall Ticket */}
                 <View style={styles.fieldGroup}>
-                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Year</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Hall Ticket Number</Text>
+                  <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
+                    <Feather name="credit-card" size={16} color={colors.mutedForeground} />
+                    <TextInput
+                      style={[styles.input, { color: colors.foreground }]}
+                      value={editForm.hallTicketNumber}
+                      onChangeText={(v) => setEditForm((p) => ({ ...p, hallTicketNumber: v }))}
+                      placeholder="e.g. 22BCS0001"
+                      placeholderTextColor={colors.mutedForeground}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                </View>
+
+                {/* Academic Year */}
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Academic Year</Text>
+                  <DropdownPicker
+                    label="Select Academic Year"
+                    value={editForm.academicYear}
+                    options={ACADEMIC_YEARS}
+                    onSelect={(v) => setEditForm((p) => ({ ...p, academicYear: v }))}
+                    icon="calendar"
+                  />
+                </View>
+
+                {/* Year */}
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Year of Study</Text>
                   <DropdownPicker
                     label="Select Year"
                     value={editForm.year}
                     options={YEARS}
                     onSelect={(v) => setEditForm((p) => ({ ...p, year: v }))}
-                    icon="calendar"
+                    icon="book"
                   />
                 </View>
+
+                {/* Branch */}
                 <View style={styles.fieldGroup}>
-                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Branch</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Branch / Department</Text>
                   <DropdownPicker
                     label="Select Branch"
                     value={editForm.branch}
                     options={BRANCHES}
                     onSelect={(v) => setEditForm((p) => ({ ...p, branch: v }))}
-                    icon="book"
+                    icon="layers"
                   />
                 </View>
+
+                {/* Section */}
                 <View style={styles.fieldGroup}>
                   <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Section</Text>
                   <DropdownPicker
@@ -240,15 +306,18 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20 },
-  profileCard: { borderRadius: 24, padding: 28, alignItems: "center", gap: 8, marginBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
+  profileCard: { borderRadius: 24, padding: 24, alignItems: "center", gap: 8, marginBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
   avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", marginBottom: 4 },
   avatarText: { color: "#fff", fontSize: 28, fontFamily: "Inter_700Bold" },
   userName: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold" },
-  userEmail: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Inter_400Regular" },
+  userEmail: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontFamily: "Inter_400Regular" },
   badgeRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap", justifyContent: "center" },
   badge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { color: "#fff", fontSize: 12, fontFamily: "Inter_500Medium" },
-  roleBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: 4 },
+  badgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_500Medium" },
+  htStrip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.1)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  htLabel: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontFamily: "Inter_400Regular" },
+  htValue: { color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" },
+  roleBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   roleText: { color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium" },
   section: { gap: 8, marginBottom: 20 },
   sectionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 1 },

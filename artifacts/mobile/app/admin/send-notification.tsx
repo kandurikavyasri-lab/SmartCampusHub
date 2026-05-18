@@ -19,6 +19,16 @@ import { useAppData } from "@/context/AppDataContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
 import { TARGET_YEARS, TARGET_BRANCHES } from "@/constants/academia";
+import type { NotifCategory } from "@/constants/academia";
+
+const CATEGORY_OPTIONS: { label: string; value: NotifCategory; icon: string; color: string }[] = [
+  { label: "General",     value: "general",   icon: "bell",          color: "#6366F1" },
+  { label: "Exam Alert",  value: "exam",      icon: "edit",          color: "#EF4444" },
+  { label: "Supply Exam", value: "supply",    icon: "alert-circle",  color: "#F97316" },
+  { label: "Timetable",   value: "timetable", icon: "calendar",      color: "#3B82F6" },
+  { label: "Holiday",     value: "holiday",   icon: "sun",           color: "#22C55E" },
+  { label: "Result",      value: "result",    icon: "award",         color: "#8B5CF6" },
+];
 
 export default function SendNotificationScreen() {
   const colors = useColors();
@@ -29,6 +39,7 @@ export default function SendNotificationScreen() {
   const [body, setBody] = useState("");
   const [targetYear, setTargetYear] = useState("All");
   const [targetBranch, setTargetBranch] = useState("All");
+  const [category, setCategory] = useState<NotifCategory>("general");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -46,6 +57,7 @@ export default function SendNotificationScreen() {
     await addNotification({
       title: title.trim(),
       body: body.trim(),
+      category,
       targetYear,
       targetBranch,
       targetBatch: `${targetYear}-${targetBranch}`,
@@ -117,6 +129,31 @@ export default function SendNotificationScreen() {
                 maxLength={500}
               />
             </View>
+          </View>
+
+          {/* Category */}
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Notice Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+              {CATEGORY_OPTIONS.map((cat) => {
+                const isActive = category === cat.value;
+                return (
+                  <Pressable
+                    key={cat.value}
+                    style={[
+                      styles.catChip,
+                      isActive
+                        ? { backgroundColor: cat.color, borderColor: cat.color }
+                        : { backgroundColor: colors.secondary, borderColor: colors.border },
+                    ]}
+                    onPress={() => setCategory(cat.value)}
+                  >
+                    <Feather name={cat.icon as "bell"} size={12} color={isActive ? "#fff" : cat.color} />
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: isActive ? "#fff" : colors.foreground }}>{cat.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
 
           {/* Target Year */}
@@ -223,4 +260,5 @@ const styles = StyleSheet.create({
   successText: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
   sendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14 },
   sendBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  catChip: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
 });

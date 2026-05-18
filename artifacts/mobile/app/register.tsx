@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, SECTIONS } from "@/constants/academia";
+import { YEARS, BRANCHES, SECTIONS, ACADEMIC_YEARS } from "@/constants/academia";
 
 export default function RegisterScreen() {
   const colors = useColors();
@@ -27,19 +27,21 @@ export default function RegisterScreen() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    year: "",
-    branch: "",
-    section: "",
-    rollNumber: "",
-    phone: "",
-    enrollmentNo: "",
-    joinYear: new Date().getFullYear().toString(),
+    name:             "",
+    email:            "",
+    password:         "",
+    phone:            "",
+    year:             "",
+    branch:           "",
+    section:          "",
+    rollNumber:       "",
+    hallTicketNumber: "",
+    academicYear:     "2024-25",
+    enrollmentNo:     "",
+    joinYear:         new Date().getFullYear().toString(),
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error,   setError]   = useState("");
 
   const update = (key: keyof typeof form, val: string) =>
     setForm((p) => ({ ...p, [key]: val }));
@@ -48,18 +50,19 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!form.year || !form.branch || !form.section) {
-      setError("Please select year, branch, and section");
+      setError("Please select Year, Branch, and Section");
       return;
     }
     if (!form.rollNumber.trim()) {
-      setError("Roll number is required");
+      setError("Roll Number / Hall Ticket Number is required");
       return;
     }
     setLoading(true);
     setError("");
     const result = await register({
       ...form,
-      enrollmentNo: form.rollNumber,
+      hallTicketNumber: form.hallTicketNumber || form.rollNumber,
+      enrollmentNo:     form.rollNumber,
     });
     setLoading(false);
     if (!result.success) {
@@ -77,17 +80,11 @@ export default function RegisterScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          {
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16),
-            paddingBottom: insets.bottom + 40,
-          },
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Back button */}
         <View style={styles.topRow}>
           <Pressable
             style={[styles.backBtn, { backgroundColor: colors.secondary }]}
@@ -109,34 +106,37 @@ export default function RegisterScreen() {
           <View style={[styles.stepDot, { backgroundColor: step === 2 ? colors.primary : colors.border }]} />
         </View>
 
-        {/* Step 1: Personal info */}
+        {/* ── Step 1: Personal Info ── */}
         {step === 1 && (
           <View style={styles.fields}>
             {(
               [
-                { key: "name",     label: "Full Name",  placeholder: "Your full name",         icon: "user"  },
-                { key: "email",    label: "Email",      placeholder: "University email",        icon: "mail"  },
-                { key: "password", label: "Password",   placeholder: "Create a password",       icon: "lock"  },
-                { key: "phone",    label: "Phone",      placeholder: "Contact number (optional)",icon:"phone" },
+                { key: "name",     label: "Full Name",         placeholder: "Your full name"              },
+                { key: "email",    label: "Email",             placeholder: "University / personal email"  },
+                { key: "password", label: "Password",          placeholder: "Create a strong password"     },
+                { key: "phone",    label: "Mobile (optional)", placeholder: "+91 XXXXX XXXXX"              },
               ] as const
-            ).map(({ key, label, placeholder, icon }) => (
-              <View key={key} style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>{label}</Text>
-                <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
-                  <Feather name={icon} size={16} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.input, { color: colors.foreground }]}
-                    placeholder={placeholder}
-                    placeholderTextColor={colors.mutedForeground}
-                    value={form[key]}
-                    onChangeText={(v) => update(key, v)}
-                    autoCapitalize={key === "email" ? "none" : key === "name" ? "words" : "none"}
-                    keyboardType={key === "phone" ? "phone-pad" : key === "email" ? "email-address" : "default"}
-                    secureTextEntry={key === "password"}
-                  />
+            ).map(({ key, label, placeholder }) => {
+              const iconMap = { name: "user", email: "mail", password: "lock", phone: "phone" } as const;
+              return (
+                <View key={key} style={styles.fieldGroup}>
+                  <Text style={[styles.label, { color: colors.mutedForeground }]}>{label}</Text>
+                  <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
+                    <Feather name={iconMap[key]} size={16} color={colors.mutedForeground} />
+                    <TextInput
+                      style={[styles.input, { color: colors.foreground }]}
+                      placeholder={placeholder}
+                      placeholderTextColor={colors.mutedForeground}
+                      value={form[key]}
+                      onChangeText={(v) => update(key, v)}
+                      autoCapitalize={key === "name" ? "words" : "none"}
+                      keyboardType={key === "phone" ? "phone-pad" : key === "email" ? "email-address" : "default"}
+                      secureTextEntry={key === "password"}
+                    />
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
 
             <Pressable
               style={({ pressed }) => [
@@ -146,29 +146,28 @@ export default function RegisterScreen() {
               onPress={() => { if (canGoToStep2) { setError(""); setStep(2); } }}
               disabled={!canGoToStep2}
             >
-              <Text style={[styles.nextBtnText, { color: canGoToStep2 ? "#fff" : colors.mutedForeground }]}>
-                Continue
-              </Text>
+              <Text style={[styles.nextBtnText, { color: canGoToStep2 ? "#fff" : colors.mutedForeground }]}>Continue</Text>
               <Feather name="arrow-right" size={16} color={canGoToStep2 ? "#fff" : colors.mutedForeground} />
             </Pressable>
           </View>
         )}
 
-        {/* Step 2: Academic info */}
+        {/* ── Step 2: Academic Info ── */}
         {step === 2 && (
           <View style={styles.fields}>
+            {/* Year */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Year *</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Year of Study *</Text>
               <DropdownPicker
                 label="Select Year"
                 value={form.year}
                 options={YEARS}
                 onSelect={(v) => update("year", v)}
-                placeholder="Select your year"
-                icon="calendar"
+                icon="book"
               />
             </View>
 
+            {/* Branch */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Branch / Department *</Text>
               <DropdownPicker
@@ -176,11 +175,11 @@ export default function RegisterScreen() {
                 value={form.branch}
                 options={BRANCHES}
                 onSelect={(v) => update("branch", v)}
-                placeholder="Select your branch"
-                icon="book"
+                icon="layers"
               />
             </View>
 
+            {/* Section */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Section *</Text>
               <DropdownPicker
@@ -188,36 +187,68 @@ export default function RegisterScreen() {
                 value={form.section}
                 options={SECTIONS}
                 onSelect={(v) => update("section", v)}
-                placeholder="Select your section"
                 icon="users"
               />
             </View>
 
+            {/* Academic Year */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Academic Year</Text>
+              <DropdownPicker
+                label="Select Academic Year"
+                value={form.academicYear}
+                options={ACADEMIC_YEARS}
+                onSelect={(v) => update("academicYear", v)}
+                icon="calendar"
+              />
+            </View>
+
+            {/* Roll Number */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Roll Number *</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
                 <Feather name="hash" size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="e.g. CS20001"
+                  placeholder="e.g. 22BCS0001"
                   placeholderTextColor={colors.mutedForeground}
                   value={form.rollNumber}
-                  onChangeText={(v) => update("rollNumber", v)}
+                  onChangeText={(v) => {
+                    update("rollNumber", v);
+                    if (!form.hallTicketNumber) update("hallTicketNumber", v);
+                  }}
                   autoCapitalize="characters"
                 />
               </View>
             </View>
 
-            {/* Preview card */}
+            {/* Hall Ticket (optional, defaults to roll number) */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Hall Ticket Number (if different)</Text>
+              <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
+                <Feather name="credit-card" size={16} color={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  placeholder="Leave blank to use Roll Number"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={form.hallTicketNumber}
+                  onChangeText={(v) => update("hallTicketNumber", v)}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+
+            {/* Preview */}
             {form.year && form.branch && (
               <View style={[styles.previewCard, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
                 <Feather name="info" size={14} color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.previewText, { color: colors.primary }]}>
-                    You'll see timetable, syllabus, and results for{" "}
+                    Your timetable, results, and notices will be filtered for{" "}
                     <Text style={{ fontFamily: "Inter_700Bold" }}>
-                      {form.year} Year {form.branch}{form.section ? ` Section ${form.section}` : ""}
+                      {form.year} Year · {form.branch}{form.section ? ` · Section ${form.section}` : ""}
                     </Text>
+                    {form.academicYear ? ` (AY ${form.academicYear})` : ""}
                   </Text>
                 </View>
               </View>
@@ -241,7 +272,10 @@ export default function RegisterScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={[styles.nextBtnText, { color: "#fff" }]}>Create Account</Text>
+                <>
+                  <Text style={[styles.nextBtnText, { color: "#fff" }]}>Create Account</Text>
+                  <Feather name="check" size={16} color="#fff" />
+                </>
               )}
             </Pressable>
           </View>
@@ -258,30 +292,18 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 4 },
   subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 20 },
-  stepRow: { flexDirection: "row", alignItems: "center", marginBottom: 28, gap: 0 },
+  stepRow: { flexDirection: "row", alignItems: "center", marginBottom: 28 },
   stepDot: { width: 12, height: 12, borderRadius: 6 },
   stepLine: { flex: 1, height: 2, marginHorizontal: 6 },
   fields: { gap: 16 },
   fieldGroup: { gap: 6 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  inputRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
-  },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13 },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
-  previewCard: {
-    flexDirection: "row", gap: 10, alignItems: "flex-start",
-    borderWidth: 1, borderRadius: 12, padding: 12,
-  },
+  previewCard: { flexDirection: "row", gap: 10, alignItems: "flex-start", borderWidth: 1, borderRadius: 12, padding: 12 },
   previewText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  errorBox: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-  },
+  errorBox: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   errorText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
-  nextBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 15, borderRadius: 14, marginTop: 4,
-  },
+  nextBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, marginTop: 4 },
   nextBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });
