@@ -1,9 +1,13 @@
 /**
  * Constructs the base API URL for the API server.
- * Uses EXPO_PUBLIC_DOMAIN (= $REPLIT_DEV_DOMAIN) injected by the dev script.
- * Falls back to hostname manipulation for web when the env var is absent.
+ * Defaults to the local API server used during development.
  */
 export function getApiUrl(path: string): string {
+  const baseUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (baseUrl) {
+    return baseUrl.replace(/\/+$/, "") + path;
+  }
+
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (domain) {
     return `https://${domain}${path}`;
