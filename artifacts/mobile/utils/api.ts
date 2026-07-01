@@ -12,10 +12,12 @@ export function getApiUrl(path: string): string {
   if (domain) {
     return `https://${domain}${path}`;
   }
+
   if (typeof window !== "undefined" && window.location?.hostname) {
-    // In Replit Expo web, strip the 'expo.' subdomain part
     const hostname = window.location.hostname.replace(/^[^.]+\.expo\./, "");
-    return `https://${hostname}${path}`;
+    const protocol = window.location.protocol === "https:" ? "https" : "http";
+    return `${protocol}://${hostname}:5000${path}`;
   }
+
   return `http://localhost:5000${path}`;
 }

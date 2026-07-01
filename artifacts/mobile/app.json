@@ -39,7 +39,11 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiUrl": "Set EXPO_PUBLIC_API_URL in eas.json for builds"
-    }
+      "apiUrl": "Set EXPO_PUBLIC_API_URL in eas.json for builds",
+      "eas": {
+        "projectId": "c7ed08e1-b402-468e-b5d5-c70d39893714"
+      }
+    },
+    "owner": "kavyasree_kanduri"
   }
 }

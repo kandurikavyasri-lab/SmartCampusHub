@@ -20,7 +20,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://YOUR-PRODUCTION-API-DOMAIN.com"
+        "EXPO_PUBLIC_API_URL": "https://smartcampushub.onrender.com"
       }
     },
     "production": {
@@ -29,7 +29,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://YOUR-PRODUCTION-API-DOMAIN.com"
+        "EXPO_PUBLIC_API_URL": "https://smartcampushub.onrender.com"
       }
     }
   },

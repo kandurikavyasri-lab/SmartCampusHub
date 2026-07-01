@@ -19,7 +19,7 @@ PORT=5000
 Open `artifacts/mobile/eas.json` and replace:
 
 ```text
-https://YOUR-PRODUCTION-API-DOMAIN.com
+https://smartcampushub.onrender.com
 ```
 
 with your deployed API URL, for example:

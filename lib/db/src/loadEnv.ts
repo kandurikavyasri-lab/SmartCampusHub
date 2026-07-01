@@ -49,22 +49,25 @@ export function loadWorkspaceEnv(startDir = process.cwd()): void {
 }
 
 
-function addSupabaseSslMode(databaseUrl: string): string {
-  if (!databaseUrl.includes("supabase.com") || databaseUrl.includes("sslmode=")) {
-    return databaseUrl;
-  }
+function removeSslMode(databaseUrl: string): string {
+  const [base, query = ""] = databaseUrl.split("?");
+  if (!query) return databaseUrl;
 
-  const separator = databaseUrl.includes("?") ? "&" : "?";
-  return databaseUrl + separator + "sslmode=require";
+  const params = new URLSearchParams(query);
+  params.delete("sslmode");
+  params.delete("uselibpqcompat");
+
+  const remaining = params.toString();
+  return remaining ? base + "?" + remaining : base;
 }
 
 export function getDatabaseUrl(): string | undefined {
   const databaseUrl = process.env.DATABASE_URL;
-  return databaseUrl ? addSupabaseSslMode(databaseUrl) : undefined;
+  return databaseUrl ? removeSslMode(databaseUrl) : undefined;
 }
 
 export function getMigrationDatabaseUrl(): string | undefined {
   const migrationUrl = process.env.DATABASE_MIGRATION_URL;
-  if (migrationUrl) return addSupabaseSslMode(migrationUrl);
+  if (migrationUrl) return removeSslMode(migrationUrl);
   return getDatabaseUrl();
 }

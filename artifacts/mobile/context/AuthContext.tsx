@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { BRANCH_FULL } from "@/constants/academia";
+import { getApiUrl } from "@/utils/api";
 
 export interface User {
   id: string;
@@ -129,6 +130,18 @@ const SEED_USERS: User[] = [
 
 const USERS_KEY = "users_v2";
 
+async function apiRequest(path: string, body: unknown): Promise<{ success: boolean; user?: User; error?: string }> {
+  const response = await fetch(getApiUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) return { success: false, error: data.error ?? "Request failed" };
+  return data;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -173,6 +186,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function login(email: string, password: string) {
+    try {
+      const result = await apiRequest("/api/auth/login", { email, password });
+      if (result.success && result.user) {
+        await AsyncStorage.setItem("current_user", JSON.stringify(result.user));
+        setUser(result.user);
+        return { success: true };
+      }
+    } catch (_) {
+      // Keep local demo login available when the API is offline.
+    }
+
     const raw   = await AsyncStorage.getItem(USERS_KEY);
     const users: User[] = raw ? JSON.parse(raw) : SEED_USERS;
     const found = users.find(
@@ -183,7 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(found);
     return { success: true };
   }
-
   async function logout() {
     await AsyncStorage.removeItem("current_user");
     setUser(null);
@@ -194,20 +217,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const users: User[] = raw ? JSON.parse(raw) : SEED_USERS;
     const exists = users.find((u) => u.email.toLowerCase() === data.email.toLowerCase());
     if (exists) return { success: false, error: "Email already registered" };
-    const newUser: User = {
-      ...data,
-      id:         "student-" + Date.now().toString(),
-      role:       "student",
-      batch:      `${data.year}-${data.branch}`,
-      department: BRANCH_FULL[data.branch] ?? data.branch,
-    };
-    users.push(newUser);
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-    await AsyncStorage.setItem("current_user", JSON.stringify(newUser));
-    setUser(newUser);
-    return { success: true };
-  }
 
+    try {
+      const result = await apiRequest("/api/auth/register", data);
+      if (!result.success) return { success: false, error: result.error };
+      if (result.user) {
+        users.push(result.user);
+        await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+        await AsyncStorage.setItem("current_user", JSON.stringify(result.user));
+        setUser(result.user);
+        return { success: true };
+      }
+    } catch (_) {
+      return { success: false, error: "Could not connect to the server. Please start the API and try again." };
+    }
+
+    return { success: false, error: "Registration failed" };
+  }
   async function updateProfile(data: Partial<User>) {
     if (!user) return;
     const updated = { ...user, ...data };

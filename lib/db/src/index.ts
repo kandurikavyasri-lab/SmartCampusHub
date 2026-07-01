@@ -15,7 +15,14 @@ if (!databaseUrl) {
   );
 }
 
-export const pool = new Pool({ connectionString: databaseUrl });
+const poolConfig: pg.PoolConfig = { connectionString: databaseUrl };
+
+if (databaseUrl.includes("supabase.com")) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  poolConfig.ssl = { rejectUnauthorized: false };
+}
+
+export const pool = new Pool(poolConfig);
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
