@@ -18,8 +18,8 @@ export default function Index() {
   }
 
   if (!user) return <Redirect href="/login" />;
-  if (user.role === "admin") return <Redirect href="/admin" />;
-  return <Redirect href="/(tabs)" />;
+  if (user.role === "admin") return <Redirect href="/admin/feed" />;
+  return <Redirect href="/(tabs)/feed" />;
 }
 
 const styles = StyleSheet.create({

@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -20,6 +22,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
 import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL, ACADEMIC_YEARS } from "@/constants/academia";
+import { getApiUrl } from "@/utils/api";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -69,6 +72,33 @@ export default function ProfileScreen() {
     setEditModal(false);
   };
 
+  const uploadProfileImage = async () => {
+    if (!user) return;
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "Please allow photo access to upload your profile image.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.82, base64: true });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (!asset.base64) throw new Error("Could not read the selected image.");
+      const mimeType = asset.mimeType || "image/jpeg";
+      const response = await fetch(getApiUrl("/api/data/users/" + user.id + "/profile-image"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": user.id },
+        body: JSON.stringify({ actorUserId: user.id, profileImageData: asset.base64, mimeType }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) throw new Error(data.error || "Profile image upload failed");
+      await updateProfile({ profileImageUrl: data.profileImageUrl || data.user?.profileImageUrl });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Alert.alert("Upload failed", error instanceof Error ? error.message : "Could not upload profile image.");
+    }
+  };
+
   const academicInfo = user?.role === "student" ? [
     { label: "Roll Number",       value: user?.rollNumber ?? "—",                                               icon: "hash"      },
     { label: "Hall Ticket No.",   value: user?.hallTicketNumber || user?.rollNumber || "—",                    icon: "credit-card" },
@@ -93,9 +123,16 @@ export default function ProfileScreen() {
     >
       {/* Profile Hero Card */}
       <View style={[styles.profileCard, { backgroundColor: colors.primary }]}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <Pressable style={styles.avatarCircle} onPress={uploadProfileImage}>
+          {user?.profileImageUrl ? (
+            <Image source={{ uri: user.profileImageUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{initials}</Text>
+          )}
+          <View style={styles.avatarEditBadge}>
+            <Feather name="camera" size={13} color="#fff" />
+          </View>
+        </Pressable>
         <Text style={styles.userName}>{user?.name}</Text>
         <Text style={styles.userEmail}>{user?.email}</Text>
 
@@ -307,7 +344,9 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20 },
   profileCard: { borderRadius: 24, padding: 24, alignItems: "center", gap: 8, marginBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  avatarCircle: { width: 86, height: 86, borderRadius: 43, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", marginBottom: 4, overflow: "hidden" },
+  avatarImage: { width: "100%", height: "100%" },
+  avatarEditBadge: { position: "absolute", right: 3, bottom: 3, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(15,23,42,0.78)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.7)" },
   avatarText: { color: "#fff", fontSize: 28, fontFamily: "Inter_700Bold" },
   userName: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold" },
   userEmail: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontFamily: "Inter_400Regular" },

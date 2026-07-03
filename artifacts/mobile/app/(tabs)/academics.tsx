@@ -331,25 +331,87 @@ export default function AcademicsScreen() {
     { key: "syllabus", label: "Syllabus",  icon: "book-open"   },
     { key: "gpacalc",  label: "SGPA Calc", icon: "percent"     },
   ];
+  const academicProfile = [user?.year ? user.year + " Year" : "Year not set", user?.branch || "Department not set", user?.section ? "Sec " + user.section : "Section not set"].join(" - ");
+  const resultScore = results.length > 0 ? cgpa.toFixed(2) : "--";
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Tab Bar */}
-      <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarContent}>
-          {tabs.map((t) => (
-            <Pressable key={t.key} style={[styles.tab, activeTab === t.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => setActiveTab(t.key)}>
-              <Feather name={t.icon as "book"} size={14} color={activeTab === t.key ? colors.primary : colors.mutedForeground} />
-              <Text style={[styles.tabText, { color: activeTab === t.key ? colors.primary : colors.mutedForeground }]}>{t.label}</Text>
-            </Pressable>
-          ))}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.pageScroll, { paddingBottom: insets.bottom + 110 }]}
+        showsVerticalScrollIndicator={false}
+      >
+      <View style={styles.academicHeader}>
+        <View style={styles.headerTopRow}>
+          <View style={[styles.headerIconBox, { backgroundColor: colors.primary + "22" }]}>
+            <Feather name="book-open" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.headerTitleBlock}>
+            <Text style={[styles.headerEyebrow, { color: colors.mutedForeground }]}>Student Academics</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Academics</Text>
+          </View>
+        </View>
+
+        <View style={[styles.academicHero, { backgroundColor: colors.primary }]}>
+          <View style={styles.heroTextBlock}>
+            <Text style={styles.heroTitle}>Academic Progress</Text>
+            <Text style={styles.heroSubtitle}>{academicProfile}</Text>
+          </View>
+          <View style={styles.heroScoreBox}>
+            <Text style={styles.heroScore}>{resultScore}</Text>
+            <Text style={styles.heroScoreLabel}>{results.length > 0 ? "CGPA" : "CGPA"}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="bar-chart-2" size={16} color={colors.primary} />
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{midMarks.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Marks</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="award" size={16} color={colors.primary} />
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{results.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Results</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="book" size={16} color={colors.primary} />
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{syllabus.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Subjects</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.tabSection}>
+        <Text style={[styles.tabSectionTitle, { color: colors.mutedForeground }]}>Academic Records</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabPanel}>
+          {tabs.map((t) => {
+            const isActive = activeTab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                style={({ pressed }) => [
+                  styles.tab,
+                  {
+                    backgroundColor: isActive ? colors.primary : colors.card,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    opacity: pressed ? 0.82 : 1,
+                  },
+                ]}
+                onPress={() => setActiveTab(t.key)}
+              >
+                <Feather name={t.icon as "book"} size={15} color={isActive ? "#fff" : colors.primary} />
+                <Text style={[styles.tabText, { color: isActive ? "#fff" : colors.foreground }]} numberOfLines={1}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       </View>
 
       {activeTab === "gpacalc" ? (
         <SGPACalculator colors={colors} />
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100, paddingTop: 16 }]} showsVerticalScrollIndicator={false}>
+        <View style={styles.scroll}>
 
           {/* ── Mid Marks ── */}
           {activeTab === "midmarks" && (
@@ -362,7 +424,7 @@ export default function AcademicsScreen() {
                 </Text>
               </View>
               {midMarks.length === 0 ? (
-                <View style={styles.emptyState}>
+                <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Feather name="inbox" size={36} color={colors.mutedForeground} />
                   <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No marks uploaded yet</Text>
                 </View>
@@ -419,7 +481,7 @@ export default function AcademicsScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Semester Results</Text>
               {results.length === 0 ? (
-                <View style={styles.emptyState}>
+                <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Feather name="inbox" size={36} color={colors.mutedForeground} />
                   <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No results published yet</Text>
                 </View>
@@ -508,7 +570,7 @@ export default function AcademicsScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Course Syllabus</Text>
               {syllabus.length === 0 ? (
-                <View style={styles.emptyState}>
+                <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Feather name="book" size={36} color={colors.mutedForeground} />
                   <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No syllabus available</Text>
                 </View>
@@ -553,28 +615,48 @@ export default function AcademicsScreen() {
               )}
             </View>
           )}
-        </ScrollView>
+        </View>
       )}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: { borderBottomWidth: 1 },
-  tabBarContent: { paddingHorizontal: 4 },
-  tab: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 13 },
-  tabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  scroll: { paddingHorizontal: 16 },
-  section: { gap: 10 },
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderWidth: 1, borderRadius: 10, padding: 10 },
-  infoBoxText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
-  emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  pageScroll: { gap: 0 },
+  academicHeader: { paddingHorizontal: 20, paddingTop: Platform.OS === "web" ? 18 : 14, gap: 12 },
+  headerTopRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  headerTitleBlock: { flex: 1 },
+  headerEyebrow: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },
+  headerTitle: { fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 2 },
+  academicHero: { borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", gap: 12 },
+  heroTextBlock: { flex: 1, gap: 5 },
+  heroTitle: { color: "#fff", fontSize: 21, fontFamily: "Inter_700Bold" },
+  heroSubtitle: { color: "rgba(255,255,255,0.84)", fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 18 },
+  heroScoreBox: { width: 68, height: 68, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" },
+  heroScore: { color: "#fff", fontSize: 20, fontFamily: "Inter_700Bold" },
+  heroScoreLabel: { color: "rgba(255,255,255,0.72)", fontSize: 10, fontFamily: "Inter_700Bold", marginTop: 2 },
+  statsRow: { flexDirection: "row", gap: 8 },
+  statCard: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10, gap: 4, minHeight: 76 },
+  statValue: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  tabSection: { paddingHorizontal: 20, marginTop: 14, gap: 8 },
+  tabSectionTitle: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },
+  tabPanel: { gap: 8, paddingRight: 20 },
+  tab: { minHeight: 40, minWidth: 118, borderWidth: 1, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 13 },
+  tabText: { fontSize: 12, fontFamily: "Inter_700Bold", flexShrink: 1 },
+  scroll: { paddingHorizontal: 20, paddingTop: 18 },
+  section: { gap: 14 },
+  sectionTitle: { fontSize: 21, fontFamily: "Inter_700Bold" },
+  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderWidth: 1, borderRadius: 14, padding: 12 },
+  infoBoxText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1, lineHeight: 18 },
+  emptyState: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 18, gap: 12, borderRadius: 16, borderWidth: 1 },
+  emptyText: { fontSize: 15, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   // Mid marks
-  markCard: { borderRadius: 14, padding: 14, borderWidth: 1, gap: 10 },
+  markCard: { borderRadius: 16, padding: 15, borderWidth: 1, gap: 12 },
   markHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  subjectName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  subjectName: { fontSize: 15, fontFamily: "Inter_700Bold" },
   subjectCode: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   markScoreCol: { alignItems: "flex-end" },
   totalScore: { fontSize: 18, fontFamily: "Inter_700Bold" },
@@ -611,14 +693,14 @@ const styles = StyleSheet.create({
   gradeCell: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 6, paddingVertical: 4 },
   gradeCellText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   // Syllabus
-  syllabusCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+  syllabusCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   syllabusHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14 },
   syllabusCodeRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
   codeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   codeTagText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   creditsTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   creditsTagText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  syllabusName: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
+  syllabusName: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 4 },
   syllabusDesc: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   topicsList: { borderTopWidth: 1, padding: 14, gap: 8 },
   topicsHeading: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5, marginBottom: 4 },
@@ -627,7 +709,7 @@ const styles = StyleSheet.create({
   topicNumText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   topicText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 19 },
   // SGPA Calc
-  calcScroll: { paddingHorizontal: 16, paddingTop: 16 },
+  calcScroll: { paddingHorizontal: 20, paddingTop: 16 },
   cgpaCard: { borderRadius: 20, padding: 22, marginBottom: 14, gap: 12 },
   cgpaTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cgpaHeading: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },

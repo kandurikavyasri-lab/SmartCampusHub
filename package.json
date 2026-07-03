@@ -14,7 +14,9 @@
     "build:apk": "pnpm --filter @workspace/mobile run build:apk",
     "build:aab": "pnpm --filter @workspace/mobile run build:aab",
     "eas:login": "pnpm --filter @workspace/mobile run eas:login",
-    "eas:init": "pnpm --filter @workspace/mobile run eas:init"
+    "eas:init": "pnpm --filter @workspace/mobile run eas:init",
+    "db:seed": "pnpm --filter @workspace/db run seed",
+    "db:subjects": "pnpm --filter @workspace/db run subjects:sync"
   },
   "private": true,
   "devDependencies": {

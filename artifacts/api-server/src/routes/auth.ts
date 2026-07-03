@@ -58,7 +58,9 @@ function toMobileUser(user: typeof users.$inferSelect, student?: typeof students
     batch: year && branch ? year + "-" + branch : "",
     department: branch,
     phone: user.phone ?? "",
+    profileImageUrl: user.profileImageUrl ?? "",
     joinYear: student?.academicYear?.slice(0, 4) ?? new Date().getFullYear().toString(),
+    mustChangePassword: user.mustChangePassword ?? false,
   };
 }
 
@@ -115,11 +117,42 @@ router.post("/login", async (req, res) => {
       return;
     }
     const foundStudents = await db.select().from(students).where(eq(students.userId, user.id)).limit(1);
-    res.json({ success: true, user: toMobileUser(user, foundStudents[0]) });
+    res.json({ success: true, user: toMobileUser(user, foundStudents[0]), requiresPasswordChange: user.mustChangePassword ?? false });
   } catch (err) {
     const message = getErrorMessage(err);
     req.log.error({ err, message }, "Login failed");
     res.status(500).json({ success: false, error: "Login failed: " + message });
+  }
+});
+
+router.post("/change-password", async (req, res) => {
+  try {
+    const { userId, currentPassword, newPassword } = req.body as Record<string, string | undefined>;
+    if (!userId || !currentPassword || !newPassword) {
+      res.status(400).json({ success: false, error: "Current password and new password are required." });
+      return;
+    }
+    if (newPassword.length < 8) {
+      res.status(400).json({ success: false, error: "New password must be at least 8 characters." });
+      return;
+    }
+    const foundUsers = await db.select().from(users).where(eq(users.id, Number(userId))).limit(1);
+    const user = foundUsers[0];
+    if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
+      res.status(401).json({ success: false, error: "Current password is incorrect." });
+      return;
+    }
+    const [updated] = await db.update(users).set({
+      passwordHash: hashPassword(newPassword),
+      mustChangePassword: false,
+      updatedAt: new Date(),
+    }).where(eq(users.id, user.id)).returning();
+    const foundStudents = await db.select().from(students).where(eq(students.userId, updated.id)).limit(1);
+    res.json({ success: true, user: toMobileUser(updated, foundStudents[0]) });
+  } catch (err) {
+    const message = getErrorMessage(err);
+    req.log.error({ err, message }, "Password change failed");
+    res.status(500).json({ success: false, error: "Password change failed: " + message });
   }
 });
 

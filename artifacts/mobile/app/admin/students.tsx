@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,10 +16,22 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { User } from "@/context/AuthContext";
+import { User, useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL, TARGET_YEARS, TARGET_BRANCHES } from "@/constants/academia";
+import { YEARS, BRANCHES, SECTIONS, TARGET_BRANCHES } from "@/constants/academia";
+import { getApiUrl } from "@/utils/api";
+
+async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(getApiUrl(path), {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error ?? "Request failed");
+  return data as T;
+}
+
 
 export default function ManageStudentsScreen() {
   const colors = useColors();
@@ -31,84 +42,90 @@ export default function ManageStudentsScreen() {
   const [filterBranch, setFilterBranch] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [editStudent, setEditStudent] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", year: "", branch: "", section: "", rollNumber: "", phone: "" });
+  const { user: currentUser } = useAuth();
+  const [form, setForm] = useState({ name: "", email: "", role: "student", password: "student123", sendCredentials: true, year: "", branch: "", section: "", rollNumber: "", phone: "" });
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [credentialPreview, setCredentialPreview] = useState<{ email: string; password: string; body?: string } | null>(null);
 
   useEffect(() => { loadStudents(); }, []);
 
   async function loadStudents() {
-    const raw = await AsyncStorage.getItem("users_v2");
-    const users: User[] = raw ? JSON.parse(raw) : [];
-    setStudents(users.filter((u) => u.role === "student"));
+    try {
+      const result = await apiJson<{ success: boolean; users: User[] }>("/api/data/users");
+      setStudents(result.users);
+    } catch (_) {
+      setStudents([]);
+    }
   }
-
-  async function saveUsers(updated: User[]) {
-    const raw = await AsyncStorage.getItem("users_v2");
-    const all: User[] = raw ? JSON.parse(raw) : [];
-    const admins = all.filter((u) => u.role === "admin");
-    await AsyncStorage.setItem("users_v2", JSON.stringify([...admins, ...updated]));
-  }
-
   const openAdd = () => {
     setEditStudent(null);
-    setForm({ name: "", email: "", year: "", branch: "", section: "", rollNumber: "", phone: "" });
+    setMessage("");
+    setCredentialPreview(null);
+    setForm({ name: "", email: "", role: "student", password: "student123", sendCredentials: true, year: "", branch: "", section: "", rollNumber: "", phone: "" });
     setShowModal(true);
   };
 
   const openEdit = (s: User) => {
     setEditStudent(s);
-    setForm({ name: s.name, email: s.email, year: s.year ?? "", branch: s.branch ?? "", section: s.section ?? "", rollNumber: s.rollNumber ?? s.enrollmentNo ?? "", phone: s.phone ?? "" });
+    setMessage("");
+    setCredentialPreview(null);
+    setForm({ name: s.name, email: s.email, role: s.role, password: "", sendCredentials: false, year: s.year ?? "", branch: s.branch ?? "", section: s.section ?? "", rollNumber: s.rollNumber ?? s.enrollmentNo ?? "", phone: s.phone ?? "" });
     setShowModal(true);
   };
 
   const handleDelete = (student: User) => {
-    const doDelete = () => {
+    const doDelete = async () => {
+      await apiJson("/api/data/users/" + student.id, { method: "DELETE" });
       const updated = students.filter((s) => s.id !== student.id);
       setStudents(updated);
-      saveUsers(updated);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
     if (Platform.OS === "web") {
       doDelete();
     } else {
-      Alert.alert("Delete Student", `Remove ${student.name}?`, [
+      Alert.alert("Delete User", "Remove " + student.name + "?", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: doDelete },
       ]);
     }
   };
-
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) return;
     setLoading(true);
-    let updated: User[];
-    if (editStudent) {
-      updated = students.map((s) =>
-        s.id === editStudent.id
-          ? { ...s, ...form, batch: `${form.year}-${form.branch}`, department: BRANCH_FULL[form.branch] ?? form.branch, enrollmentNo: form.rollNumber }
-          : s
-      );
-    } else {
-      const newStudent: User = {
-        id: "student-" + Date.now(),
-        role: "student",
-        password: "student123",
-        joinYear: new Date().getFullYear().toString(),
-        batch: `${form.year}-${form.branch}`,
-        department: BRANCH_FULL[form.branch] ?? form.branch,
-        enrollmentNo: form.rollNumber,
-        hallTicketNumber: form.rollNumber,
-        academicYear: "2024-25",
-        ...form,
-      };
-      updated = [...students, newStudent];
-    }
+    const payload = { ...form, hallTicketNumber: form.rollNumber, academicYear: "2024-25", triggeredByUserId: currentUser?.id };
+    const result = editStudent
+      ? await apiJson<{ success: boolean; user: User }>("/api/data/users/" + editStudent.id, { method: "PUT", body: JSON.stringify(payload) })
+      : await apiJson<{ success: boolean; user: User }>("/api/data/users", { method: "POST", body: JSON.stringify(payload) });
+    const updated = editStudent
+      ? students.map((s) => (s.id === editStudent.id ? result.user : s))
+      : [...students, result.user];
     setStudents(updated);
-    await saveUsers(updated);
     setLoading(false);
     setShowModal(false);
+    const status = !editStudent && form.sendCredentials ? (result as any).credentialEmail?.deliveryStatus || (result as any).credentialEmail?.status : null;
+    setMessage(!editStudent && form.sendCredentials ? (status === "sent" ? "Temporary credentials email sent and saved in history." : "Credentials were created and logged. Configure email provider to send inbox email.") : "User saved successfully.");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
+
+  async function reissueCredentials(student: User) {
+    setMessage("");
+    setCredentialPreview(null);
+    try {
+      const result = await apiJson<{ success: boolean; user: User; credentialEmail?: { body?: string }; temporaryPassword: string }>("/api/data/users/" + student.id + "/credentials", {
+        method: "POST",
+        body: JSON.stringify({ triggeredByUserId: currentUser?.id }),
+      });
+      setStudents((current) => current.map((s) => (s.id === student.id ? result.user : s)));
+      setCredentialPreview({ email: student.email, password: result.temporaryPassword, body: result.credentialEmail?.body });
+      const status = (result as any).credentialEmail?.deliveryStatus || (result as any).credentialEmail?.status;
+      setMessage(status === "sent" ? "New temporary credentials were emailed to " + student.name + "." : "New temporary credentials were generated and logged for " + student.name + ". Configure email provider to send inbox email.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (_) {
+      setMessage("Could not reissue credentials. Please check API and database.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }
 
   // Year filter chips
   const yearFilters = [{ label: "All", value: "All" }, ...YEARS];
@@ -125,7 +142,7 @@ export default function ManageStudentsScreen() {
     return yearMatch && branchMatch && searchMatch;
   });
 
-  const yearColors: Record<string, string> = { "1st": "#22C55E", "2nd": "#3B82F6", "3rd": "#F59E0B", "4th": "#EC4899" };
+  const yearColors: Record<string, string> = { "1st": "#0F766E", "2nd": "#1D4ED8", "3rd": "#7C3AED", "4th": "#B45309" };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -149,50 +166,53 @@ export default function ManageStudentsScreen() {
         </Pressable>
       </View>
 
-      {/* Year filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {yearFilters.map((f) => (
-          <Pressable
-            key={f.value}
-            style={[
-              styles.filterChip,
-              filterYear === f.value
-                ? { backgroundColor: yearColors[f.value] ?? colors.primary }
-                : { backgroundColor: colors.secondary },
-            ]}
-            onPress={() => setFilterYear(f.value)}
-          >
-            <Text style={[styles.filterChipText, { color: filterYear === f.value ? "#fff" : colors.mutedForeground }]}>
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.filterPanel}>
+        <View style={styles.filterBlock}>
+          <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>Year</Text>
+          <View style={styles.filterRow}>
+            {yearFilters.map((f) => (
+              <Pressable
+                key={f.value}
+                style={[
+                  styles.filterChip,
+                  filterYear === f.value
+                    ? { backgroundColor: yearColors[f.value] ?? colors.primary, borderColor: yearColors[f.value] ?? colors.primary }
+                    : { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+                onPress={() => setFilterYear(f.value)}
+              >
+                <Text style={[styles.filterChipText, { color: filterYear === f.value ? "#fff" : colors.secondaryForeground }]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-      {/* Branch filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {branchFilters.map((f) => (
-          <Pressable
-            key={f.value}
-            style={[
-              styles.filterChip,
-              filterBranch === f.value
-                ? { backgroundColor: colors.primary }
-                : { backgroundColor: colors.secondary },
-            ]}
-            onPress={() => setFilterBranch(f.value)}
-          >
-            <Text style={[styles.filterChipText, { color: filterBranch === f.value ? "#fff" : colors.mutedForeground }]}>
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+        <View style={styles.filterBlock}>
+          <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>Department</Text>
+          <View style={styles.filterRow}>
+            {branchFilters.map((f) => (
+              <Pressable
+                key={f.value}
+                style={[
+                  styles.filterChip,
+                  filterBranch === f.value
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+                onPress={() => setFilterBranch(f.value)}
+              >
+                <Text style={[styles.filterChipText, { color: filterBranch === f.value ? "#fff" : colors.secondaryForeground }]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-      {/* Count */}
-      <View style={[styles.countRow, { paddingHorizontal: 20 }]}>
         <Text style={[styles.countText, { color: colors.mutedForeground }]}>
-          {filtered.length} student{filtered.length !== 1 ? "s" : ""} found
+          {filtered.length} user{filtered.length !== 1 ? "s" : ""} found
         </Text>
       </View>
 
@@ -203,7 +223,7 @@ export default function ManageStudentsScreen() {
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="users" size={36} color={colors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No students found</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No users found</Text>
           </View>
         ) : (
           filtered.map((s) => {
@@ -218,7 +238,7 @@ export default function ManageStudentsScreen() {
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[styles.studentName, { color: colors.foreground }]}>{s.name}</Text>
                   <Text style={[styles.studentMeta, { color: colors.mutedForeground }]}>
-                    {s.rollNumber ?? s.enrollmentNo} · {s.email}
+                    {s.rollNumber || s.enrollmentNo || "No roll number"} · {s.email}
                   </Text>
                   <View style={styles.tagRow}>
                     {s.year && (
@@ -259,7 +279,7 @@ export default function ManageStudentsScreen() {
               <Text style={{ fontSize: 16, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>Cancel</Text>
             </Pressable>
             <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-              {editStudent ? "Edit Student" : "Add Student"}
+              {editStudent ? "Edit User" : "Add User"}
             </Text>
             <Pressable onPress={handleSave} disabled={loading}>
               {loading ? <ActivityIndicator size="small" color={colors.primary} /> : (
@@ -268,6 +288,48 @@ export default function ManageStudentsScreen() {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.modalFields} keyboardShouldPersistTaps="handled">
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Account Type</Text>
+              <DropdownPicker
+                label="Account Type"
+                value={form.role}
+                options={[{ label: "Student", value: "student" }, { label: "Admin", value: "admin" }]}
+                onSelect={(v) => setForm((p) => ({ ...p, role: v, password: p.password || (v === "admin" ? "admin123" : "student123") }))}
+                icon="shield"
+                placeholder="Select account type"
+              />
+            </View>
+            {!editStudent && (
+              <>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Temporary Password</Text>
+                  <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]} >
+                    <Feather name="lock" size={16} color={colors.mutedForeground} />
+                    <TextInput
+                      style={[styles.input, { color: colors.foreground }]}
+                      placeholder="Temporary password"
+                      placeholderTextColor={colors.mutedForeground}
+                      value={form.password}
+                      onChangeText={(v) => setForm((p) => ({ ...p, password: v }))}
+                      secureTextEntry
+                    />
+                  </View>
+                </View>
+                <Pressable
+                  style={[styles.credentialToggle, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                  onPress={() => setForm((p) => ({ ...p, sendCredentials: !p.sendCredentials }))}
+                >
+                  <View style={[styles.checkbox, { borderColor: form.sendCredentials ? colors.primary : colors.border, backgroundColor: form.sendCredentials ? colors.primary : "transparent" }]}>
+                    {form.sendCredentials ? <Feather name="check" size={13} color="#fff" /> : null}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.credentialToggleTitle, { color: colors.foreground }]}>Send temporary credentials email</Text>
+                    <Text style={[styles.credentialToggleSub, { color: colors.mutedForeground }]}>Email the temporary password, save history, and force password change after first login.</Text>
+                  </View>
+                </Pressable>
+              </>
+            )}
+
             {/* Text fields */}
             {[
               { key: "name",       label: "Full Name",   placeholder: "Student full name",  icon: "user"  },
@@ -283,7 +345,7 @@ export default function ManageStudentsScreen() {
                     style={[styles.input, { color: colors.foreground }]}
                     placeholder={placeholder}
                     placeholderTextColor={colors.mutedForeground}
-                    value={form[key as keyof typeof form]}
+                    value={String(form[key as keyof typeof form] ?? "")}
                     onChangeText={(v) => setForm((p) => ({ ...p, [key]: v }))}
                     autoCapitalize={key === "email" ? "none" : "words"}
                   />
@@ -312,33 +374,45 @@ export default function ManageStudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: "row", gap: 12, paddingHorizontal: 20, paddingVertical: 12 },
-  searchRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  topBar: { flexDirection: "row", gap: 12, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12 },
+  searchRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, minHeight: 48 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  addBtn: { width: 46, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  filterRow: { paddingHorizontal: 20, paddingBottom: 8, gap: 8, flexDirection: "row" },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  filterChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  countRow: { paddingBottom: 8 },
-  countText: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  list: { paddingHorizontal: 20, gap: 10 },
+  addBtn: { width: 48, height: 48, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  filterPanel: { paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  filterBlock: { gap: 7 },
+  filterLabel: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
+  filterChip: { minHeight: 34, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 9, borderWidth: 1, justifyContent: "center", maxWidth: "100%", alignSelf: "flex-start" },
+  filterChipText: { fontSize: 12, fontFamily: "Inter_700Bold", flexShrink: 1 },
+  countText: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },
+  noticeBox: { marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderRadius: 12, padding: 11, flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  noticeText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
+  credentialBox: { marginHorizontal: 20, marginBottom: 12, borderWidth: 1, borderRadius: 12, padding: 13, gap: 5 },
+  credentialTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  credentialText: { fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 17 },
+  credentialPassword: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  list: { paddingHorizontal: 20, gap: 12 },
   emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
-  studentCard: { flexDirection: "row", gap: 12, alignItems: "flex-start", borderRadius: 14, padding: 14, borderWidth: 1 },
-  avatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  avatarText: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  studentName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  studentMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  tagRow: { flexDirection: "row", gap: 4, flexWrap: "wrap", marginTop: 4 },
-  tag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  tagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  actions: { flexDirection: "column", gap: 6 },
-  actionBtn: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  emptyText: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  studentCard: { flexDirection: "row", gap: 12, alignItems: "center", borderRadius: 12, padding: 14, borderWidth: 1 },
+  avatar: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  avatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  studentName: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  studentMeta: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  tagRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 7 },
+  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  tagText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  actions: { flexDirection: "column", gap: 8, marginLeft: 4 },
+  actionBtn: { width: 36, height: 36, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  credentialToggle: { borderWidth: 1, borderRadius: 12, padding: 12, flexDirection: "row", gap: 10, alignItems: "center" },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  credentialToggleTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  credentialToggleSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17, marginTop: 2 },
   modalContent: { flex: 1 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1 },
-  modalFields: { padding: 24, gap: 16 },
-  fieldGroup: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13 },
+  modalFields: { padding: 22, gap: 16 },
+  fieldGroup: { gap: 7 },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, minHeight: 48 },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
 });

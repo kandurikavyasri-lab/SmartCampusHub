@@ -21,6 +21,12 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const { timetable, notifications, midMarks } = useAppData();
+  const initials = (user?.name || "Admin")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "AD";
 
   const handleLogout = async () => {
     await logout();
@@ -29,46 +35,60 @@ export default function AdminDashboard() {
 
   const adminActions = [
     {
+      icon: "book-open",
+      label: "Subjects",
+      description: "Manage year-wise curriculum",
+      route: "/admin/subjects",
+      color: "#0F766E",
+    },
+    {
+      icon: "message-square",
+      label: "Feed Management",
+      description: "Publish campus feed updates",
+      route: "/admin/feed",
+      color: "#0369A1",
+    },
+    {
       icon: "award",
       label: "Upload Results",
       description: "Add semester & mid-term marks",
       route: "/admin/results",
-      color: "#22C55E",
+      color: "#7C3AED",
     },
     {
       icon: "users",
       label: "Manage Students",
       description: "Add, edit, or remove records",
       route: "/admin/students",
-      color: "#3B82F6",
+      color: "#1D4ED8",
     },
     {
       icon: "calendar",
       label: "Update Timetable",
       description: "Modify class schedules",
       route: "/admin/timetable",
-      color: "#F59E0B",
+      color: "#B45309",
     },
     {
       icon: "send",
       label: "Send Notification",
       description: "Compose and push announcements",
       route: "/admin/send-notification",
-      color: "#EC4899",
+      color: "#7C3AED",
     },
     {
       icon: "upload-cloud",
       label: "Bulk Upload",
       description: "Upload PDF/CSV marks for a class",
       route: "/admin/bulk-upload",
-      color: "#8B5CF6",
+      color: "#475569",
     },
   ];
 
   const stats = [
-    { label: "Total Classes", value: timetable.length, icon: "calendar", color: "#3B82F6" },
-    { label: "Notifications", value: notifications.length, icon: "bell", color: "#EC4899" },
-    { label: "Mark Records", value: midMarks.length, icon: "bar-chart-2", color: "#22C55E" },
+    { label: "Total Classes", value: timetable.length, icon: "calendar", color: "#1D4ED8" },
+    { label: "Notifications", value: notifications.length, icon: "bell", color: "#7C3AED" },
+    { label: "Mark Records", value: midMarks.length, icon: "bar-chart-2", color: "#0F766E" },
   ];
 
   return (
@@ -83,26 +103,20 @@ export default function AdminDashboard() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.topRow}>
-        <View>
-          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>Admin Panel</Text>
-          <Text style={[styles.adminName, { color: colors.foreground }]}>{user?.name}</Text>
-        </View>
-        <Pressable
-          style={({ pressed }) => [
-            styles.logoutBtn,
-            { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
-          ]}
-          onPress={handleLogout}
-        >
-          <Feather name="log-out" size={18} color={colors.destructive} />
+      <View style={styles.screenTopRow}>
+        <Pressable style={[styles.roundIconButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push("/admin/feed")}>
+          <Feather name="arrow-left" size={21} color={colors.foreground} />
+        </Pressable>
+        <Text style={[styles.screenTitle, { color: colors.foreground }]}>Admin Tools</Text>
+        <Pressable style={[styles.roundIconButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push("/admin/profile")}>
+          <Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text>
         </Pressable>
       </View>
 
       <View style={[styles.heroBanner, { backgroundColor: colors.primary }]}>
         <View style={styles.heroLeft}>
-          <Text style={styles.heroTitle}>University Admin</Text>
-          <Text style={styles.heroSub}>Manage your institution from here</Text>
+          <Text style={styles.heroTitle}>University Operations</Text>
+          <Text style={styles.heroSub}>Curriculum, students, results, schedules, and campus communication</Text>
         </View>
         <View style={[styles.heroIcon, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
           <Feather name="shield" size={32} color="#fff" />
@@ -132,10 +146,12 @@ export default function AdminDashboard() {
             activeOpacity={0.75}
           >
             <View style={[styles.actionIcon, { backgroundColor: action.color + "18" }]}>
-              <Feather name={action.icon as "users"} size={24} color={action.color} />
+              <Feather name={action.icon as "users"} size={22} color={action.color} />
             </View>
-            <Text style={[styles.actionLabel, { color: colors.foreground }]}>{action.label}</Text>
-            <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>{action.description}</Text>
+            <View style={styles.actionTextBlock}>
+              <Text style={[styles.actionLabel, { color: colors.foreground }]}>{action.label}</Text>
+              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>{action.description}</Text>
+            </View>
             <View style={[styles.actionArrow, { backgroundColor: action.color + "14" }]}>
               <Feather name="arrow-right" size={14} color={action.color} />
             </View>
@@ -148,38 +164,45 @@ export default function AdminDashboard() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20 },
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  greeting: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 2 },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 },
+  screenTopRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 18 },
+  screenTitle: { flex: 1, textAlign: "center", fontSize: 21, fontFamily: "Inter_700Bold" },
+  roundIconButton: { width: 48, height: 48, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  greeting: { fontSize: 12, fontFamily: "Inter_700Bold", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0 },
   adminName: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  logoutBtn: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  topActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconButton: { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  profileButton: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   heroBanner: {
-    borderRadius: 20, padding: 22, flexDirection: "row",
-    alignItems: "center", marginBottom: 24,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12, shadowRadius: 12, elevation: 6,
+    borderRadius: 16, padding: 20, flexDirection: "row", alignItems: "center", marginBottom: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
   },
   heroLeft: { flex: 1 },
-  heroTitle: { color: "#fff", fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontFamily: "Inter_400Regular" },
-  heroIcon: { width: 60, height: 60, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginBottom: 12 },
+  heroTitle: { color: "#fff", fontSize: 21, fontFamily: "Inter_700Bold", marginBottom: 5 },
+  heroSub: { color: "rgba(255,255,255,0.78)", fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  heroIcon: { width: 54, height: 54, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  navRail: { borderWidth: 1, borderRadius: 16, padding: 5, flexDirection: "row", gap: 5, marginBottom: 22 },
+  navItem: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  navItemText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  navItemActiveText: { color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" },
+  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 12 },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
   statCard: {
-    flex: 1, borderRadius: 16, padding: 14, alignItems: "center", gap: 6, borderWidth: 1,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+    flex: 1, borderRadius: 12, padding: 13, alignItems: "center", gap: 6, borderWidth: 1,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
-  statIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  statValue: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  statLabel: { fontSize: 10, fontFamily: "Inter_400Regular", textAlign: "center" },
-  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  statIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  statValue: { fontSize: 21, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 10, fontFamily: "Inter_500Medium", textAlign: "center", lineHeight: 13 },
+  actionsGrid: { gap: 10 },
   actionCard: {
-    width: "47%", borderRadius: 18, padding: 18, gap: 8, borderWidth: 1,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+    width: "100%", borderRadius: 12, padding: 15, gap: 10, borderWidth: 1, flexDirection: "row", alignItems: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
-  actionIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  actionLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  actionIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  actionTextBlock: { flex: 1, gap: 3 },
+  actionLabel: { fontSize: 15, fontFamily: "Inter_700Bold" },
   actionDesc: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 16 },
-  actionArrow: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  actionArrow: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", marginLeft: "auto" },
 });

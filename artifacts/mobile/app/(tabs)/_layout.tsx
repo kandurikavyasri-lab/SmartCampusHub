@@ -17,8 +17,12 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Dashboard</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="feed">
+        <Icon sf={{ default: "newspaper", selected: "newspaper.fill" }} />
+        <Label>Feed</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="timetable">
-        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
+        <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>Schedule</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="academics">
@@ -51,8 +55,8 @@ function ClassicTabLayout() {
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: true,
         headerStyle: { backgroundColor: colors.card },
-        headerTitleStyle: { color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 17 },
-        headerShadowVisible: false,
+        headerTitleStyle: { color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 17 },
+        headerShadowVisible: true,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.card,
@@ -87,6 +91,19 @@ function ClassicTabLayout() {
               <SymbolView name="house" tintColor={color} size={22} />
             ) : (
               <Feather name="home" size={21} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="feed"
+        options={{
+          headerShown: false,
+          title: "Feed",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="newspaper" tintColor={color} size={22} />
+            ) : (
+              <Feather name="message-square" size={21} color={color} />
             ),
         }}
       />

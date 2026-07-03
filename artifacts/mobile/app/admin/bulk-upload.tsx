@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import React, { useEffect, useState } from "react";
 import {
@@ -22,7 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useAppData } from "@/context/AppDataContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, TARGET_YEARS, TARGET_BRANCHES } from "@/constants/academia";
+import { YEARS, BRANCHES } from "@/constants/academia";
 import { getApiUrl } from "@/utils/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -81,7 +80,6 @@ const DATA_TYPES = [
 
 const SEMESTERS = [1,2,3,4,5,6,7,8].map((n) => ({ label: `Semester ${n}`, value: String(n) }));
 
-const HISTORY_KEY = "bulk_upload_history";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,6 +90,16 @@ function relTime(iso: string) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(getApiUrl(path), {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error ?? "Request failed");
+  return data as T;
 }
 
 // ─── Edit Record Modal ────────────────────────────────────────────────────────
@@ -246,17 +254,23 @@ export default function BulkUploadScreen() {
   useEffect(() => { loadHistory(); }, []);
 
   async function loadHistory() {
-    const raw = await AsyncStorage.getItem(HISTORY_KEY);
-    if (raw) setHistory(JSON.parse(raw));
+    try {
+      const result = await apiJson<{ success: boolean; history: HistoryEntry[] }>("/api/data/upload-history");
+      setHistory(result.history);
+    } catch (_) {}
   }
 
   async function saveHistory(entry: HistoryEntry) {
-    const updated = [entry, ...history].slice(0, 50);
+    let savedEntry = entry;
+    try {
+      const result = await apiJson<{ success: boolean; id: string }>("/api/data/upload-history", { method: "POST", body: JSON.stringify(entry) });
+      savedEntry = { ...entry, id: result.id };
+    } catch (_) {}
+    const updated = [savedEntry, ...history].slice(0, 50);
     setHistory(updated);
-    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
   }
 
-  // ── Step 1: Pick file and send to server ──────────────────────────────────
+  // Step 1: Pick file and send to server
   async function handlePickAndUpload() {
     setError("");
     let picked;

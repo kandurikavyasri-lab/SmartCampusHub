@@ -45,21 +45,13 @@ export default function LoginScreen() {
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (role === "admin") {
-      router.replace("/admin");
+      router.replace("/admin/feed");
     } else {
-      router.replace("/(tabs)");
+      router.replace("/(tabs)/feed");
     }
   };
 
-  const fillDemo = () => {
-    if (role === "admin") {
-      setEmail("admin@university.edu");
-      setPassword("admin123");
-    } else {
-      setEmail("student@university.edu");
-      setPassword("student123");
-    }
-  };
+
 
   return (
     <KeyboardAvoidingView
@@ -177,13 +169,7 @@ export default function LoginScreen() {
               ) : (
                 <Text style={styles.loginBtnText}>Sign In</Text>
               )}
-            </Pressable>
-
-            <Pressable onPress={fillDemo} style={styles.demoBtn}>
-              <Text style={[styles.demoBtnText, { color: colors.accent }]}>
-                Fill demo credentials
-              </Text>
-            </Pressable>
+            </Pressable>
           </View>
         </View>
 
@@ -246,9 +232,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15, borderRadius: 14,
     alignItems: "center", justifyContent: "center", marginTop: 4,
   },
-  loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  demoBtn: { alignItems: "center", paddingVertical: 8 },
-  demoBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   registerRow: { flexDirection: "row", justifyContent: "center", marginTop: 20 },
   registerText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   registerLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

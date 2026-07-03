@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -69,7 +70,8 @@ export default function SendNotificationScreen() {
     setTimeout(() => {
       setSent(false);
       setTitle(""); setBody(""); setTargetYear("All"); setTargetBranch("All");
-    }, 2500);
+      router.push("/admin/notification-controls");
+    }, 900);
   };
 
   const yearColors: Record<string, string> = { All: "#6366F1", "1st": "#22C55E", "2nd": "#3B82F6", "3rd": "#F59E0B", "4th": "#EC4899" };
@@ -88,10 +90,16 @@ export default function SendNotificationScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: colors.foreground }]}>Send Notification</Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Broadcast announcements to specific years, branches, or everyone
-        </Text>
+        <View style={styles.headingRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: colors.foreground }]}>Send Notification</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Broadcast announcements to specific years, branches, or everyone</Text>
+          </View>
+          <Pressable style={[styles.manageButton, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => router.push("/admin/notification-controls")}>
+            <Feather name="list" size={15} color={colors.primary} />
+            <Text style={[styles.manageText, { color: colors.primary }]}>Manage</Text>
+          </Pressable>
+        </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {/* Title */}
@@ -237,8 +245,11 @@ export default function SendNotificationScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { paddingHorizontal: 20 },
+  headingRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 20 },
+  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  manageButton: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
+  manageText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   card: { borderRadius: 20, padding: 20, borderWidth: 1, gap: 18, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
   fieldGroup: { gap: 8 },
   labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
