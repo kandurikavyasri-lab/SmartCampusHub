@@ -265,7 +265,7 @@ export default function FeedScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 110 }]}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 110 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadPosts(); }} />}
     >
       <View style={styles.homeHeader}>

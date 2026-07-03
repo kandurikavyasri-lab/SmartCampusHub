@@ -44,6 +44,15 @@
         "projectId": "c7ed08e1-b402-468e-b5d5-c70d39893714"
       }
     },
-    "owner": "kavyasree_kanduri"
+    "owner": "kavyasree_kanduri",
+    "androidStatusBar": {
+      "backgroundColor": "#F8FAFC",
+      "barStyle": "dark-content",
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#FFFFFF",
+      "barStyle": "dark-content"
+    }
   }
 }

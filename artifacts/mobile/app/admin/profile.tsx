@@ -88,7 +88,7 @@ export default function AdminProfileScreen() {
   ];
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 36 }]}> 
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 36 }]}> 
       <View style={styles.topRow}>
         <Pressable style={[styles.iconButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.back()}>
           <Feather name="arrow-left" size={20} color={colors.foreground} />

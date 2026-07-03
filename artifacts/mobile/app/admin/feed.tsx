@@ -177,7 +177,7 @@ export default function AdminFeedScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 120 }]}> 
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 120 }]}> 
       <View style={styles.socialTopBar}>
         <Pressable
           style={({ pressed }) => [styles.feedAvatar, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}

@@ -131,7 +131,7 @@ export default function NotificationControlsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 34 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <Pressable style={[styles.iconButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push("/admin/feed")}><Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
