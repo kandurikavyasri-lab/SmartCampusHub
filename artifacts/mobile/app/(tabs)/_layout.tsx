@@ -110,6 +110,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="timetable"
         options={{
+          headerShown: false,
           title: "Schedule",
           tabBarIcon: ({ color }) =>
             isIOS ? (

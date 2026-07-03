@@ -48,7 +48,7 @@ export default function TimetableScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: insets.bottom + 104, paddingTop: Platform.OS === "web" ? 22 : 18 },
+          { paddingBottom: insets.bottom + 112, paddingTop: Platform.OS === "web" ? 22 : insets.top + 12 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -86,11 +86,10 @@ export default function TimetableScreen() {
               <Feather name="filter" size={13} color={colors.primary} />
             </View>
           </View>
-          <View style={styles.dayGrid}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayGrid}>
             {SHORT_DAYS.map((day, index) => {
               const isToday = index === todayIdx;
               const isSelected = index === selectedDay;
-              const classCount = allClasses.filter((entry) => entry.day === DAYS[index]).length;
               return (
                 <Pressable
                   key={day}
@@ -104,17 +103,13 @@ export default function TimetableScreen() {
                   ]}
                   onPress={() => setSelectedDay(index)}
                 >
-                  <View style={styles.dayChipTopRow}>
-                    <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>{day}</Text>
-                    {isToday && <View style={[styles.todayDot, { backgroundColor: isSelected ? "rgba(255,255,255,0.75)" : colors.accent }]} />}
-                  </View>
-                  <Text style={[styles.dayChipMeta, { color: isSelected ? "rgba(255,255,255,0.82)" : colors.mutedForeground }]}> 
-                    {classCount} {classCount === 1 ? "class" : "classes"}
-                  </Text>
+                  <Feather name={isSelected ? "check-circle" : "calendar"} size={15} color={isSelected ? "#fff" : colors.primary} />
+                  <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]} numberOfLines={1}>{day}</Text>
+                  {isToday && <View style={[styles.todayDot, { backgroundColor: isSelected ? "rgba(255,255,255,0.78)" : colors.accent }]} />}
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -180,37 +175,36 @@ export default function TimetableScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, gap: 16 },
-  headerBlock: { gap: 14 },
+  scroll: { paddingHorizontal: 16, gap: 12 },
+  headerBlock: { gap: 10 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  headerIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  headerIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   headerTextBlock: { flex: 1 },
   eyebrow: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", marginTop: 2 },
-  summaryCard: { borderRadius: 18, padding: 18, flexDirection: "row", alignItems: "center", gap: 14 },
+  title: { fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 1 },
+  summaryCard: { borderRadius: 17, padding: 15, flexDirection: "row", alignItems: "center", gap: 12 },
   summaryCopy: { flex: 1, gap: 5 },
-  summaryTitle: { color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" },
-  summarySubtitle: { color: "rgba(255,255,255,0.84)", fontSize: 14, fontFamily: "Inter_500Medium" },
-  summaryIconBox: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.16)" },
-  filterPanel: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 13 },
+  summaryTitle: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold" },
+  summarySubtitle: { color: "rgba(255,255,255,0.84)", fontSize: 13, fontFamily: "Inter_500Medium" },
+  summaryIconBox: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.16)" },
+  filterPanel: { borderWidth: 1, borderRadius: 16, padding: 13, gap: 12 },
   filterPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   panelTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
   panelSubtitle: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 3 },
   filterBadge: { width: 36, height: 36, borderRadius: 11, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  dayGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  dayChip: { width: "31.5%", minHeight: 62, borderWidth: 1, borderRadius: 13, paddingHorizontal: 11, paddingVertical: 10, justifyContent: "space-between" },
+  dayGrid: { gap: 8, paddingRight: 20 },
+  dayChip: { minWidth: 106, minHeight: 40, borderWidth: 1, borderRadius: 999, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   dayChipTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
-  dayChipText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  dayChipMeta: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  dayChipText: { fontSize: 12, fontFamily: "Inter_700Bold", flexShrink: 1 },
   todayDot: { width: 6, height: 6, borderRadius: 3 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 2 },
   dayLabel: { fontSize: 22, fontFamily: "Inter_700Bold" },
   daySubtext: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 3 },
   countBadge: { minWidth: 42, height: 34, borderRadius: 999, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   countText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  emptyState: { borderWidth: 1, borderRadius: 18, alignItems: "center", paddingVertical: 48, paddingHorizontal: 20, gap: 12 },
-  emptyIcon: { width: 70, height: 70, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  emptyState: { borderWidth: 1, borderRadius: 18, alignItems: "center", paddingVertical: 30, paddingHorizontal: 18, gap: 10 },
+  emptyIcon: { width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   emptySubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   classList: { gap: 0 },
   classRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
