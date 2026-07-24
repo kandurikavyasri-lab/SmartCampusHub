@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -285,7 +286,11 @@ export default function ManageStudentsScreen() {
       </ScrollView>
 
       <Modal visible={showModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+        <KeyboardAvoidingView
+          style={[styles.modalContent, { backgroundColor: colors.background }]}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={0}
+        >
           <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: insets.top + 12 }]}>
             <Pressable onPress={() => setShowModal(false)}>
               <Text style={{ fontSize: 16, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>Cancel</Text>
@@ -299,7 +304,12 @@ export default function ManageStudentsScreen() {
               )}
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={styles.modalFields} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={[styles.modalFields, { paddingBottom: insets.bottom + 220 }]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Account Type</Text>
               <DropdownPicker
@@ -369,7 +379,7 @@ export default function ManageStudentsScreen() {
               <DropdownPicker label="Select Academic Year" value={form.academicYear} options={ACADEMIC_YEARS} onSelect={(v) => setForm((p) => ({ ...p, academicYear: v }))} icon="calendar" placeholder="Select academic year" />
             </View>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

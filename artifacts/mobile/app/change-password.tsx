@@ -15,6 +15,7 @@ export default function ChangePasswordScreen() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -47,7 +48,20 @@ export default function ChangePasswordScreen() {
               <Text style={[styles.label, { color: colors.mutedForeground }]}>{field.label}</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}> 
                 <Feather name="lock" size={16} color={colors.mutedForeground} />
-                <TextInput style={[styles.input, { color: colors.foreground }]} value={field.value} onChangeText={field.setter} secureTextEntry placeholder={field.label} placeholderTextColor={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  value={field.value}
+                  onChangeText={field.setter}
+                  secureTextEntry={!visibleFields[field.label]}
+                  placeholder={field.label}
+                  placeholderTextColor={colors.mutedForeground}
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setVisibleFields((current) => ({ ...current, [field.label]: !current[field.label] }))}
+                >
+                  <Feather name={visibleFields[field.label] ? "eye-off" : "eye"} size={18} color={colors.mutedForeground} />
+                </Pressable>
               </View>
             </View>
           ))}
@@ -72,6 +86,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },
   inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, minHeight: 50, paddingHorizontal: 14 },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  eyeButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center" },
   errorBox: { borderRadius: 10, padding: 11 },
   errorText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   button: { minHeight: 50, borderRadius: 12, alignItems: "center", justifyContent: "center" },
