@@ -25,6 +25,7 @@ export interface MidMark {
   midTerm1: number;
   midTerm2: number;
   maxMarks: number;
+  academicYear?: string;
   externalMarks?: number;
   maxExternal?: number;
 }
@@ -45,6 +46,7 @@ export interface SemesterResult {
   id: string;
   studentId: string;
   semester: number;
+  academicYear?: string;
   sgpa: number;
   cgpa: number;
   grade: string;
@@ -104,8 +106,8 @@ interface AppDataContextType {
   updateNotification:   (n: Notification) => Promise<void>;
   deleteNotification:   (id: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
-  getStudentMidMarks:       (studentId: string) => MidMark[];
-  getStudentResults:        (studentId: string) => SemesterResult[];
+  getStudentMidMarks:       (studentIds: string | string[], academicYear?: string) => MidMark[];
+  getStudentResults:        (studentIds: string | string[], academicYear?: string) => SemesterResult[];
   getStudentTimetable:      (year: string, branch: string, section: string) => TimetableEntry[];
   getStudentNotifications:  (year: string, branch: string) => Notification[];
   getStudentSyllabus:       (year: string, branch: string) => SyllabusItem[];
@@ -177,7 +179,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   async function addMidMark(mark: Omit<MidMark, "id">) {
     const result = await apiJson<{ success: boolean; id: string }>("/api/data/mid-marks", { method: "POST", body: JSON.stringify(mark) });
-    setMidMarks((current) => [...current, { ...mark, id: result.id }]);
+    const normalized = {
+      ...mark,
+      midTerm1: Number((mark as any).midTerm1 ?? 0),
+      midTerm2: Number((mark as any).midTerm2 ?? 0),
+      maxMarks: Number((mark as any).maxMarks ?? 30),
+      academicYear: (mark as any).academicYear,
+    };
+    setMidMarks((current) => [...current, { ...normalized, id: result.id }]);
   }
 
   async function addSemesterResult(result: Omit<SemesterResult, "id">) {
@@ -205,12 +214,30 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   }
 
   const getStudentMidMarks = useCallback(
-    (studentId: string) => midMarks.filter((m) => m.studentId === studentId),
+    (studentIds: string | string[], academicYear?: string) => {
+      const ids = (Array.isArray(studentIds) ? studentIds : [studentIds])
+        .filter(Boolean)
+        .map((id) => String(id).trim().toLowerCase());
+      return midMarks.filter((m) => {
+        const idMatch = ids.includes(String(m.studentId).trim().toLowerCase());
+        const yearMatch = !academicYear || !m.academicYear || m.academicYear === academicYear;
+        return idMatch && yearMatch;
+      });
+    },
     [midMarks]
   );
 
   const getStudentResults = useCallback(
-    (studentId: string) => semesterResults.filter((r) => r.studentId === studentId),
+    (studentIds: string | string[], academicYear?: string) => {
+      const ids = (Array.isArray(studentIds) ? studentIds : [studentIds])
+        .filter(Boolean)
+        .map((id) => String(id).trim().toLowerCase());
+      return semesterResults.filter((r) => {
+        const idMatch = ids.includes(String(r.studentId).trim().toLowerCase());
+        const yearMatch = !academicYear || !r.academicYear || r.academicYear === academicYear;
+        return idMatch && yearMatch;
+      });
+    },
     [semesterResults]
   );
 

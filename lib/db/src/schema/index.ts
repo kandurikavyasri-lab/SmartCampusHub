@@ -47,6 +47,27 @@ export const credentialEmailHistory = pgTable("credential_email_history", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const passwordResetRequests = pgTable(
+  "password_reset_requests",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id),
+    identifier: text("identifier").notNull(),
+    channel: text("channel").notNull().default("email"),
+    codeHash: text("code_hash").notNull(),
+    status: text("status").notNull().default("pending"),
+    deliveryStatus: text("delivery_status").notNull().default("logged"),
+    errorMessage: text("error_message"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userStatusIdx: index("password_reset_user_status_idx").on(table.userId, table.status),
+    expiresIdx: index("password_reset_expires_idx").on(table.expiresAt),
+  }),
+);
+
 export const students = pgTable(
   "students",
   {
@@ -123,6 +144,7 @@ export const midMarks = pgTable("mid_marks", {
   subject: text("subject").notNull(),
   mid1: numeric("mid1", { precision: 5, scale: 2 }),
   mid2: numeric("mid2", { precision: 5, scale: 2 }),
+  maxMarks: numeric("max_marks", { precision: 5, scale: 2 }).notNull().default("30"),
   semester: integer("semester").notNull(),
   academicYear: text("academic_year").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

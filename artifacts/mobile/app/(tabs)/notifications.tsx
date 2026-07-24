@@ -15,7 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useAppData } from "@/context/AppDataContext";
 import { useColors } from "@/hooks/useColors";
 import { formatIndianDate, timeRelative } from "@/utils/dateFormat";
-import type { NotifCategory } from "@/constants/academia";
+import { DEFAULT_ACADEMIC_YEAR, type NotifCategory } from "@/constants/academia";
 
 // ─── Category config ──────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ export default function NotificationsScreen() {
             <Text style={[styles.title, { color: colors.foreground }]}>Notice Board</Text>
             {user?.year && user?.branch && (
               <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-                {user.year} Year · {user.branch} · AY {user.academicYear ?? "2024-25"}
+                {user.year} Year · {user.branch} · AY {user.academicYear ?? DEFAULT_ACADEMIC_YEAR}
               </Text>
             )}
           </View>

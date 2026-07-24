@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import DropdownPicker from "@/components/DropdownPicker";
-import { BRANCHES, YEARS } from "@/constants/academia";
+import { ACADEMIC_YEARS, BRANCHES, DEFAULT_ACADEMIC_YEAR, YEARS } from "@/constants/academia";
 import { useAppData } from "@/context/AppDataContext";
 import type { User } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
@@ -47,6 +47,7 @@ export default function UploadResultsScreen() {
   const { addMidMark, subjects: allSubjects } = useAppData();
   const [year, setYear] = useState("");
   const [branch, setBranch] = useState("");
+  const [academicYear, setAcademicYear] = useState(DEFAULT_ACADEMIC_YEAR);
   const [studentId, setStudentId] = useState("");
   const [students, setStudents] = useState<User[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -57,14 +58,19 @@ export default function UploadResultsScreen() {
 
   const subjects = useMemo(() =>
     allSubjects
-      .filter((subject) => subject.year === year && subject.branch === branch && subject.isActive !== false)
+      .filter((subject) =>
+        subject.year === year &&
+        subject.branch === branch &&
+        subject.academicYear === academicYear &&
+        subject.isActive !== false
+      )
       .map((subject) => ({ code: subject.code, name: subject.name })),
-    [allSubjects, branch, year]
+    [academicYear, allSubjects, branch, year]
   );
 
   const filteredStudents = useMemo(
-    () => students.filter((s) => s.role === "student" && s.year === year && s.branch === branch),
-    [branch, students, year]
+    () => students.filter((s) => s.role === "student" && s.year === year && s.branch === branch && (!s.academicYear || s.academicYear === academicYear)),
+    [academicYear, branch, students, year]
   );
   const studentOptions = filteredStudents.map((s) => ({
     label: s.name + " (" + (s.rollNumber || s.hallTicketNumber || s.email) + ")",
@@ -151,6 +157,7 @@ export default function UploadResultsScreen() {
           midTerm1: mid1,
           midTerm2: mid2,
           maxMarks,
+          academicYear,
         })
       ));
       setSuccess(true);
@@ -205,6 +212,18 @@ export default function UploadResultsScreen() {
               onSelect={selectBranch}
               icon="book"
               placeholder="Select department"
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Academic Year</Text>
+            <DropdownPicker
+              label="Select Academic Year"
+              value={academicYear}
+              options={ACADEMIC_YEARS}
+              onSelect={setAcademicYear}
+              icon="calendar"
+              placeholder="Select academic year"
             />
           </View>
 

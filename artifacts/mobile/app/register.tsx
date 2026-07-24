@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, SECTIONS, ACADEMIC_YEARS } from "@/constants/academia";
+import { YEARS, BRANCHES, SECTIONS, ACADEMIC_YEARS, DEFAULT_ACADEMIC_YEAR } from "@/constants/academia";
 
 export default function RegisterScreen() {
   const colors = useColors();
@@ -36,7 +36,7 @@ export default function RegisterScreen() {
     section:          "",
     rollNumber:       "",
     hallTicketNumber: "",
-    academicYear:     "2024-25",
+    academicYear:     DEFAULT_ACADEMIC_YEAR,
     enrollmentNo:     "",
     joinYear:         new Date().getFullYear().toString(),
   });

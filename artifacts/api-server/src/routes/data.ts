@@ -10,16 +10,46 @@ import {
   users,
   credentialEmailHistory,
 } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Router } from "express";
 import multer from "multer";
-import { mkdirSync } from "node:fs";
-import { extname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { extname, join, resolve } from "node:path";
 import { randomUUID, scryptSync } from "node:crypto";
 
 const router: Router = Router();
 const profileUploadDirectory = join(process.cwd(), "uploads", "profiles");
 mkdirSync(profileUploadDirectory, { recursive: true });
+
+function loadLocalEnv() {
+  const candidates = [
+    resolve(process.cwd(), ".env"),
+    resolve(process.cwd(), "../../.env"),
+  ];
+  const protectedKeys = new Set(Object.keys(process.env));
+
+  for (const filePath of candidates) {
+    if (!existsSync(filePath)) continue;
+
+    const lines = readFileSync(filePath, "utf8").split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+
+      const separator = trimmed.indexOf("=");
+      const key = trimmed.slice(0, separator).trim();
+      let value = trimmed.slice(separator + 1).trim();
+      if (!key || protectedKeys.has(key)) continue;
+
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  }
+}
+
+loadLocalEnv();
 
 function mapNotification(n: any) {
   return {
@@ -79,8 +109,39 @@ function buildCredentialEmail(user: { name: string; email: string; role: string 
 }
 
 async function sendCredentialEmail(to: string, subject: string, body: string) {
-  const apiKey = process.env.RESEND_API_KEY;
+  const provider = (process.env.EMAIL_PROVIDER || "").toLowerCase();
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPassword = process.env.GMAIL_APP_PASSWORD;
   const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL;
+  const replyTo = process.env.EMAIL_REPLY_TO;
+
+  if (provider === "gmail" || (!process.env.RESEND_API_KEY && gmailUser && gmailPassword)) {
+    if (!gmailUser || !gmailPassword || !from) {
+      return { status: "logged", errorMessage: "Gmail email provider is not configured. Add GMAIL_USER, GMAIL_APP_PASSWORD, and EMAIL_FROM." };
+    }
+    try {
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: gmailUser,
+          pass: gmailPassword,
+        },
+      });
+      await transporter.sendMail({
+        from,
+        to,
+        replyTo: replyTo || undefined,
+        subject,
+        text: body,
+      });
+      return { status: "sent", errorMessage: null };
+    } catch (error) {
+      return { status: "failed", errorMessage: error instanceof Error ? error.message : "Gmail email sending failed" };
+    }
+  }
+
+  const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey || !from) {
     return { status: "logged", errorMessage: "Email provider is not configured. Add RESEND_API_KEY and EMAIL_FROM." };
   }
@@ -138,6 +199,12 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function getDefaultAcademicYear(date = new Date()): string {
+  const calendarYear = date.getFullYear();
+  const startYear = date.getMonth() >= 5 ? calendarYear : calendarYear - 1;
+  return startYear + "-" + String(startYear + 1).slice(-2);
+}
+
 function toMobileStudent(user: typeof users.$inferSelect, student?: typeof students.$inferSelect) {
   const year = student?.year ?? "";
   const branch = student?.branch ?? "";
@@ -152,7 +219,7 @@ function toMobileStudent(user: typeof users.$inferSelect, student?: typeof stude
     section: student?.section ?? "",
     rollNumber: student?.rollNumber ?? student?.hallTicketNumber ?? "",
     hallTicketNumber: student?.hallTicketNumber ?? "",
-    academicYear: student?.academicYear ?? "2024-25",
+    academicYear: student?.academicYear ?? getDefaultAcademicYear(),
     enrollmentNo: student?.rollNumber ?? student?.hallTicketNumber ?? "",
     batch: year && branch ? year + "-" + branch : user.role === "admin" ? "Admin" : "",
     department: branch || (user.role === "admin" ? "Administration" : ""),
@@ -217,12 +284,14 @@ async function getBootstrapData() {
       subjectName: m.subject,
       midTerm1: toNumber(m.mid1),
       midTerm2: toNumber(m.mid2),
-      maxMarks: 25,
+      maxMarks: toNumber(m.maxMarks ?? 30),
+      academicYear: m.academicYear,
     })),
     semesterResults: sr.map((r: any) => ({
       id: String(r.id),
       studentId: r.hallTicketNumber,
       semester: r.semester,
+      academicYear: r.academicYear,
       sgpa: toNumber(r.sgpa),
       cgpa: toNumber(r.cgpa),
       grade: r.status,
@@ -267,6 +336,10 @@ router.post("/users", async (req, res) => {
   const role = req.body.role === "admin" ? "admin" : "student";
   const email = String(req.body.email ?? "").trim().toLowerCase();
   const name = String(req.body.name ?? "").trim();
+  const shouldSendCredentials = req.body.sendCredentials !== false;
+  const temporaryPassword = shouldSendCredentials
+    ? generateTemporaryPassword()
+    : String(req.body.password || (role === "admin" ? "admin123" : "student123"));
   if (!email || !name) {
     res.status(400).json({ success: false, error: "Name and email are required." });
     return;
@@ -283,9 +356,9 @@ router.post("/users", async (req, res) => {
     name,
     role,
     phone: req.body.phone || null,
-    passwordHash: hashPassword(String(req.body.password || (role === "admin" ? "admin123" : "student123"))),
-    mustChangePassword: req.body.sendCredentials !== false,
-    temporaryPasswordIssuedAt: req.body.sendCredentials !== false ? new Date() : null,
+    passwordHash: hashPassword(temporaryPassword),
+    mustChangePassword: shouldSendCredentials,
+    temporaryPasswordIssuedAt: shouldSendCredentials ? new Date() : null,
   }).returning();
 
   let student: typeof students.$inferSelect | undefined;
@@ -297,16 +370,16 @@ router.post("/users", async (req, res) => {
       year: String(req.body.year || ""),
       branch: String(req.body.branch || ""),
       section: String(req.body.section || ""),
-      academicYear: String(req.body.academicYear || "2024-25"),
+      academicYear: String(req.body.academicYear || getDefaultAcademicYear()),
     }).returning();
   }
 
   let credentialEmail = null;
-  if (req.body.sendCredentials !== false) {
-    credentialEmail = await logCredentialEmail(user, String(req.body.password || (role === "admin" ? "admin123" : "student123")), Number(req.body.triggeredByUserId) || null);
+  if (shouldSendCredentials) {
+    credentialEmail = await logCredentialEmail(user, temporaryPassword, Number(req.body.triggeredByUserId) || null);
   }
 
-  res.status(201).json({ success: true, user: toMobileStudent(user, student), credentialEmail });
+  res.status(201).json({ success: true, user: toMobileStudent(user, student), credentialEmail, temporaryPassword: shouldSendCredentials ? temporaryPassword : undefined });
 });
 
 router.put("/users/:id", async (req, res) => {
@@ -336,7 +409,7 @@ router.put("/users/:id", async (req, res) => {
       year: String(req.body.year || ""),
       branch: String(req.body.branch || ""),
       section: String(req.body.section || ""),
-      academicYear: String(req.body.academicYear || "2024-25"),
+      academicYear: String(req.body.academicYear || getDefaultAcademicYear()),
       updatedAt: new Date(),
     };
     if (student) [student] = await db.update(students).set(values).where(eq(students.id, student.id)).returning();
@@ -476,7 +549,7 @@ router.post("/subjects", async (req, res) => {
     branch,
     semester: Number(req.body.semester || 1),
     credits: Number(req.body.credits || 3),
-    academicYear: String(req.body.academicYear || "2024-25"),
+    academicYear: String(req.body.academicYear || getDefaultAcademicYear()),
   }).returning();
   res.status(201).json({ success: true, subject: { ...subject, id: String(subject.id) } });
 });
@@ -490,7 +563,7 @@ router.put("/subjects/:id", async (req, res) => {
     branch: String(req.body.branch ?? "").trim(),
     semester: Number(req.body.semester || 1),
     credits: Number(req.body.credits || 3),
-    academicYear: String(req.body.academicYear || "2024-25"),
+    academicYear: String(req.body.academicYear || getDefaultAcademicYear()),
     isActive: req.body.isActive !== false,
     updatedAt: new Date(),
   }).where(eq(subjects.id, id)).returning();
@@ -511,7 +584,7 @@ router.post("/timetable", async (req, res) => {
     year: req.body.year,
     branch: req.body.branch,
     section: req.body.section,
-    academicYear: req.body.academicYear || "2024-25",
+    academicYear: req.body.academicYear || getDefaultAcademicYear(),
     day: req.body.day,
     startTime: req.body.time,
     endTime: req.body.endTime,
@@ -600,14 +673,32 @@ router.delete("/notifications/:id", async (req, res) => {
 });
 
 router.post("/mid-marks", async (req, res) => {
-  const [mark] = await db.insert(midMarks).values({
-    hallTicketNumber: req.body.studentId,
-    subject: req.body.subjectName || req.body.subjectCode,
-    mid1: String(req.body.midTerm1 ?? 0),
-    mid2: String(req.body.midTerm2 ?? 0),
-    semester: Number(req.body.semester || 0),
-    academicYear: req.body.academicYear || "2024-25",
-  }).returning();
+  const hallTicketNumber = String(req.body.studentId || "").trim();
+  const subject = String(req.body.subjectName || req.body.subjectCode || "").trim();
+  const semester = Number(req.body.semester || 0);
+  const academicYear = String(req.body.academicYear || getDefaultAcademicYear());
+  if (!hallTicketNumber || !subject || !semester) {
+    res.status(400).json({ success: false, error: "Student, subject, and semester are required." });
+    return;
+  }
+  const existing = (await db.select().from(midMarks).where(and(
+    eq(midMarks.hallTicketNumber, hallTicketNumber),
+    eq(midMarks.subject, subject),
+    eq(midMarks.semester, semester),
+    eq(midMarks.academicYear, academicYear),
+  )).limit(1))[0];
+  const values = {
+    hallTicketNumber,
+    subject,
+    mid1: String(req.body.midTerm1 ?? existing?.mid1 ?? 0),
+    mid2: String(req.body.midTerm2 ?? existing?.mid2 ?? 0),
+    maxMarks: String(req.body.maxMarks ?? existing?.maxMarks ?? 30),
+    semester,
+    academicYear,
+  };
+  const [mark] = existing
+    ? await db.update(midMarks).set(values).where(eq(midMarks.id, existing.id)).returning()
+    : await db.insert(midMarks).values(values).returning();
   res.status(201).json({ success: true, id: String(mark.id) });
 });
 
@@ -615,7 +706,7 @@ router.post("/semester-results", async (req, res) => {
   const [result] = await db.insert(semesterResults).values({
     hallTicketNumber: req.body.studentId,
     semester: Number(req.body.semester || 0),
-    academicYear: req.body.academicYear || "2024-25",
+    academicYear: req.body.academicYear || getDefaultAcademicYear(),
     sgpa: String(req.body.sgpa ?? req.body.gpa ?? 0),
     cgpa: String(req.body.cgpa ?? req.body.sgpa ?? req.body.gpa ?? 0),
     status: req.body.grade || "pass",

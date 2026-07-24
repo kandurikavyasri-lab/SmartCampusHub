@@ -59,13 +59,32 @@ export const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
   value: String(n),
 }));
 
-export const ACADEMIC_YEARS = [
-  { label: "2024-25", value: "2024-25" },
-  { label: "2023-24", value: "2023-24" },
-  { label: "2022-23", value: "2022-23" },
-  { label: "2021-22", value: "2021-22" },
-  { label: "2020-21", value: "2020-21" },
-];
+export function getAcademicYearStart(date = new Date()) {
+  const calendarYear = date.getFullYear();
+  const month = date.getMonth();
+  return month >= 5 ? calendarYear : calendarYear - 1;
+}
+
+export function formatAcademicYear(startYear: number) {
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
+export function generateAcademicYears(pastYears = 8, futureYears = 1) {
+  const currentStart = getAcademicYearStart();
+  const startYears = [
+    currentStart,
+    ...Array.from({ length: futureYears }, (_, index) => currentStart + index + 1),
+    ...Array.from({ length: pastYears }, (_, index) => currentStart - index - 1),
+  ];
+
+  return startYears.map((startYear) => {
+    const academicYear = formatAcademicYear(startYear);
+    return { label: academicYear, value: academicYear };
+  });
+}
+
+export const DEFAULT_ACADEMIC_YEAR = formatAcademicYear(getAcademicYearStart());
+export const ACADEMIC_YEARS = generateAcademicYears();
 
 export const NOTIF_CATEGORIES: { label: string; value: NotifCategory; color: string; icon: string }[] = [
   { label: "All",         value: "general",   color: "#6366F1", icon: "bell"       },

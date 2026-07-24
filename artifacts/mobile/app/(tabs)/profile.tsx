@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL, ACADEMIC_YEARS } from "@/constants/academia";
+import { YEARS, BRANCHES, SECTIONS, BRANCH_FULL, ACADEMIC_YEARS, DEFAULT_ACADEMIC_YEAR } from "@/constants/academia";
 import { getApiUrl } from "@/utils/api";
 
 export default function ProfileScreen() {
@@ -35,7 +35,7 @@ export default function ProfileScreen() {
     year:             user?.year             ?? "",
     branch:           user?.branch           ?? "",
     hallTicketNumber: user?.hallTicketNumber ?? "",
-    academicYear:     user?.academicYear     ?? "2024-25",
+    academicYear:     user?.academicYear     ?? DEFAULT_ACADEMIC_YEAR,
   });
 
   const initials = user?.name
@@ -49,7 +49,7 @@ export default function ProfileScreen() {
       year:             user?.year             ?? "",
       branch:           user?.branch           ?? "",
       hallTicketNumber: user?.hallTicketNumber ?? "",
-      academicYear:     user?.academicYear     ?? "2024-25",
+      academicYear:     user?.academicYear     ?? DEFAULT_ACADEMIC_YEAR,
     });
     setEditModal(true);
   };
@@ -241,13 +241,13 @@ export default function ProfileScreen() {
       {/* Edit Modal */}
       <Modal visible={editModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setEditModal(false)}>
         <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Pressable onPress={() => setEditModal(false)}>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>Cancel</Text>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: insets.top + 12 }]}>
+            <Pressable style={styles.modalHeaderAction} onPress={() => setEditModal(false)}>
+              <Text style={[styles.modalActionText, { color: colors.mutedForeground }]}>Cancel</Text>
             </Pressable>
-            <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Edit Profile</Text>
-            <Pressable onPress={handleSaveProfile}>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.primary }}>Save</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]} numberOfLines={1}>Edit Profile</Text>
+            <Pressable style={[styles.modalHeaderAction, styles.modalHeaderActionRight]} onPress={handleSaveProfile}>
+              <Text style={[styles.modalActionText, styles.modalSaveText, { color: colors.primary }]}>Save</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.modalFields} keyboardShouldPersistTaps="handled">
@@ -371,7 +371,12 @@ const styles = StyleSheet.create({
   actionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   actionText: { fontSize: 15, fontFamily: "Inter_500Medium", flex: 1 },
   modalContent: { flex: 1 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1 },
+  modalHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, minHeight: 72, borderBottomWidth: 1 },
+  modalHeaderAction: { width: 82, minHeight: 36, justifyContent: "center" },
+  modalHeaderActionRight: { alignItems: "flex-end" },
+  modalActionText: { fontSize: 16, fontFamily: "Inter_500Medium" },
+  modalSaveText: { fontFamily: "Inter_700Bold" },
+  modalTitle: { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Inter_700Bold" },
   modalFields: { padding: 24, gap: 16 },
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },

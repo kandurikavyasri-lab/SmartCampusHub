@@ -44,6 +44,10 @@ export default function LoginScreen() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (result.requiresPasswordChange) {
+      router.replace("/change-password");
+      return;
+    }
     if (role === "admin") {
       router.replace("/admin/feed");
     } else {
@@ -147,6 +151,9 @@ export default function LoginScreen() {
                   <Feather name={showPassword ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
                 </Pressable>
               </View>
+              <Pressable style={styles.forgotLink} onPress={() => router.push("/forgot-password")}>
+                <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
+              </Pressable>
             </View>
 
             {error ? (
@@ -236,4 +243,6 @@ const styles = StyleSheet.create({
   registerRow: { flexDirection: "row", justifyContent: "center", marginTop: 20 },
   registerText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   registerLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  forgotLink: { alignSelf: "flex-end", paddingTop: 2 },
+  forgotText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

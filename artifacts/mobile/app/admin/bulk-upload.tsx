@@ -21,7 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useAppData } from "@/context/AppDataContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES } from "@/constants/academia";
+import { ACADEMIC_YEARS, DEFAULT_ACADEMIC_YEAR, YEARS, BRANCHES } from "@/constants/academia";
 import { getApiUrl } from "@/utils/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ interface ParsedSubject {
   mid2?: number;
   total?: number;
   grade?: string;
+  absent?: boolean;
 }
 
 interface ParsedRecord {
@@ -51,6 +52,9 @@ interface ParseResult {
   year: string;
   branch: string;
   semester: number;
+  midTerm?: "mid1" | "mid2";
+  subjectName?: string;
+  maxMarks?: number;
   filename: string;
   records: ParsedRecord[];
   headers: string[];
@@ -79,6 +83,10 @@ const DATA_TYPES = [
 ];
 
 const SEMESTERS = [1,2,3,4,5,6,7,8].map((n) => ({ label: `Semester ${n}`, value: String(n) }));
+const MID_TERMS = [
+  { label: "Mid Term 1", value: "mid1" },
+  { label: "Mid Term 2", value: "mid2" },
+];
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -235,7 +243,9 @@ export default function BulkUploadScreen() {
   const [year,     setYear]     = useState("");
   const [branch,   setBranch]   = useState("");
   const [semester, setSemester] = useState("5");
+  const [academicYear, setAcademicYear] = useState(DEFAULT_ACADEMIC_YEAR);
   const [dataType, setDataType] = useState("midmarks");
+  const [midTerm, setMidTerm]   = useState<"mid1" | "mid2">("mid1");
 
   // File / result
   const [pickedFile, setPickedFile]   = useState<{ name: string; uri: string; type: string } | null>(null);
@@ -292,15 +302,22 @@ export default function BulkUploadScreen() {
 
     try {
       const formData = new FormData();
-      formData.append("file", {
-        uri: picked.uri,
-        name: picked.name,
-        type: picked.mimeType || "application/octet-stream",
-      } as unknown as Blob);
+      const webFile = (picked as { file?: File }).file;
+      if (Platform.OS === "web" && webFile) {
+        formData.append("file", webFile, picked.name);
+      } else {
+        formData.append("file", {
+          uri: picked.uri,
+          name: picked.name,
+          type: picked.mimeType || "application/octet-stream",
+        } as unknown as Blob);
+      }
       formData.append("year", year);
       formData.append("branch", branch);
       formData.append("semester", semester);
+      formData.append("academicYear", academicYear);
       formData.append("dataType", dataType);
+      formData.append("midTerm", midTerm);
 
       const apiUrl = getApiUrl("/api/bulk-upload/parse");
       const res = await fetch(apiUrl, {
@@ -343,20 +360,25 @@ export default function BulkUploadScreen() {
       try {
         if (dataType === "midmarks") {
           for (const sub of rec.subjects) {
-            await addMidMark({
+            const markValue = sub.absent ? 0 : sub.total ?? sub.mid1 ?? sub.mid2 ?? 0;
+            const payload = {
               studentId: rec.rollNumber,
               subjectCode: sub.name.slice(0, 8).toUpperCase(),
               subjectName: sub.name,
-              midTerm1: sub.mid1 ?? sub.total ?? 0,
-              midTerm2: sub.mid2 ?? 0,
-              maxMarks: 25,
-            });
+              maxMarks: parseResult.maxMarks ?? 30,
+              semester: parseResult.semester || parseInt(semester),
+              academicYear,
+            } as any;
+            if (midTerm === "mid1") payload.midTerm1 = markValue;
+            else payload.midTerm2 = markValue;
+            await addMidMark(payload);
           }
         } else {
           const semGpa = rec.gpa ?? 0;
           await addSemesterResult({
             studentId: rec.rollNumber,
             semester: parseResult.semester || parseInt(semester),
+            academicYear,
             sgpa: semGpa,
             cgpa: semGpa,
             gpa: semGpa,
@@ -414,6 +436,7 @@ export default function BulkUploadScreen() {
         ok:       records.filter((r) => r.status === "ok").length,
         warnings: records.filter((r) => r.status === "warning").length,
         errors:   records.filter((r) => r.status === "error").length,
+        saveable:  records.filter((r) => r.status !== "error").length,
       }
     : null;
 
@@ -505,9 +528,32 @@ export default function BulkUploadScreen() {
                   <DropdownPicker label="Semester" value={semester} options={SEMESTERS} onSelect={setSemester} icon="layers" />
                 </View>
                 <View style={styles.fieldGroup}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Academic Year</Text>
+                  <DropdownPicker label="Academic Year" value={academicYear} options={ACADEMIC_YEARS} onSelect={setAcademicYear} icon="calendar" placeholder="Select academic year" />
+                </View>
+                <View style={styles.fieldGroup}>
                   <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Data Type</Text>
                   <DropdownPicker label="Data Type" value={dataType} options={DATA_TYPES} onSelect={setDataType} icon="database" />
                 </View>
+                {dataType === "midmarks" && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Which Mid Term?</Text>
+                    <View style={styles.segmentRow}>
+                      {MID_TERMS.map((option) => {
+                        const active = midTerm === option.value;
+                        return (
+                          <Pressable
+                            key={option.value}
+                            style={[styles.segmentButton, { backgroundColor: active ? colors.primary : colors.secondary, borderColor: active ? colors.primary : colors.border }]}
+                            onPress={() => setMidTerm(option.value as "mid1" | "mid2")}
+                          >
+                            <Text style={[styles.segmentText, { color: active ? "#fff" : colors.foreground }]}>{option.label}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* CSV Format reference */}
@@ -597,7 +643,7 @@ export default function BulkUploadScreen() {
               <View style={[styles.filterBadge, { backgroundColor: colors.secondary }]}>
                 <Feather name="filter" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.filterBadgeText, { color: colors.mutedForeground }]}>
-                  {parseResult.year} Year · {parseResult.branch} · Semester {parseResult.semester} · {parseResult.dataType}
+                  {parseResult.year} Year - {parseResult.branch} - Semester {parseResult.semester} - {parseResult.midTerm === "mid2" ? "Mid Term 2" : "Mid Term 1"}{parseResult.subjectName ? " - " + parseResult.subjectName : ""}
                 </Text>
               </View>
 
@@ -638,7 +684,8 @@ export default function BulkUploadScreen() {
                           <View key={si} style={[styles.subjectChip, { backgroundColor: colors.secondary }]}>
                             <Text style={[styles.subjectChipName, { color: colors.mutedForeground }]}>{sub.name}</Text>
                             <Text style={[styles.subjectChipMark, { color: colors.foreground }]}>
-                              {sub.total !== undefined ? sub.total
+                              {sub.absent ? "AB"
+                                : sub.total !== undefined ? `${sub.total}/${parseResult.maxMarks ?? 30}`
                                 : sub.mid1 !== undefined ? `${sub.mid1}+${sub.mid2 ?? 0}`
                                 : "—"}
                             </Text>
@@ -654,7 +701,7 @@ export default function BulkUploadScreen() {
               <TouchableOpacity
                 style={[styles.confirmBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]}
                 onPress={handleConfirm}
-                disabled={saving || statCounts.ok === 0}
+                disabled={saving || statCounts.saveable === 0}
                 activeOpacity={0.85}
               >
                 {saving ? (
@@ -663,7 +710,7 @@ export default function BulkUploadScreen() {
                   <>
                     <Feather name="check-circle" size={18} color="#fff" />
                     <Text style={styles.confirmBtnText}>
-                      Save {statCounts.ok} records to database
+                      Save {statCounts.saveable} records to database
                     </Text>
                   </>
                 )}
@@ -679,7 +726,7 @@ export default function BulkUploadScreen() {
               </View>
               <Text style={[styles.doneTitle, { color: colors.foreground }]}>Upload Complete!</Text>
               <Text style={[styles.doneSubtitle, { color: colors.mutedForeground }]}>
-                {statCounts?.ok ?? 0} student records were saved successfully
+                {statCounts?.saveable ?? 0} student records were saved successfully
               </Text>
               <View style={[styles.doneSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {[
@@ -732,6 +779,9 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  segmentRow: { flexDirection: "row", gap: 8 },
+  segmentButton: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  segmentText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   formatCard: { borderRadius: 14, padding: 14, borderWidth: 1, gap: 10, marginBottom: 16 },
   formatHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   formatTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
@@ -806,3 +856,4 @@ const styles = StyleSheet.create({
   editSaveBtn: { flex: 2, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
   editSaveText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
+

@@ -8,6 +8,17 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
 });
 
+function ensurePdfNodeGlobals() {
+  const globalScope = globalThis as typeof globalThis & {
+    DOMMatrix?: new () => unknown;
+    ImageData?: new () => unknown;
+    Path2D?: new () => unknown;
+  };
+  globalScope.DOMMatrix ??= class DOMMatrix {};
+  globalScope.ImageData ??= class ImageData {};
+  globalScope.Path2D ??= class Path2D {};
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface ParsedSubject {
@@ -16,6 +27,7 @@ export interface ParsedSubject {
   mid2?: number;
   total?: number;
   grade?: string;
+  absent?: boolean;
 }
 
 export interface ParsedRecord {
@@ -35,6 +47,9 @@ export interface ParseResult {
   year: string;
   branch: string;
   semester: number;
+  midTerm?: "mid1" | "mid2";
+  subjectName?: string;
+  maxMarks?: number;
   filename: string;
   records: ParsedRecord[];
   headers: string[];
@@ -49,7 +64,12 @@ export interface ParseResult {
 
 // ─── CSV Parser ──────────────────────────────────────────────────────────────
 
-function parseCSV(text: string): { records: ParsedRecord[]; headers: string[] } {
+function subjectFromFilename(filename: string) {
+  const clean = filename.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").replace(/\b(mid|marks|midterm|mid term)\b/gi, " ").replace(/\s+/g, " ").trim();
+  return clean ? titleCase(clean) : "Uploaded Subject";
+}
+
+function parseCSV(text: string, filename = ""): { records: ParsedRecord[]; headers: string[]; subjectName?: string; maxMarks?: number } {
   const lines = text.trim().split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) throw new Error("CSV must have at least a header row and one data row.");
 
@@ -63,6 +83,9 @@ function parseCSV(text: string): { records: ParsedRecord[]; headers: string[] } 
   const nameIdx = headers.findIndex((h) => /^name$/i.test(h) || /student\s*name/i.test(h));
   const gpaIdx  = headers.findIndex((h) => /^(c?gpa|grade\s*point)$/i.test(h));
   const semIdx  = headers.findIndex((h) => /semester|sem/i.test(h));
+  const marksIdx = headers.findIndex((h) => /^marks/i.test(h));
+  const singleSubjectName = marksIdx >= 0 ? subjectFromFilename(filename) : "";
+  const maxMarks = marksIdx >= 0 ? Number(headers[marksIdx]?.match(/\[\s*(\d+)/)?.[1] ?? 0) || undefined : undefined;
 
   if (rollIdx === -1 && nameIdx === -1) {
     throw new Error("CSV must have 'Roll Number' and 'Name' columns.");
@@ -72,7 +95,7 @@ function parseCSV(text: string): { records: ParsedRecord[]; headers: string[] } 
   const effectiveNameIdx = nameIdx >= 0 ? nameIdx : 1;
 
   // Identify subject columns
-  const skipIndices = new Set([effectiveRollIdx, effectiveNameIdx, gpaIdx, semIdx].filter((i) => i >= 0));
+  const skipIndices = new Set([effectiveRollIdx, effectiveNameIdx, gpaIdx, semIdx, marksIdx].filter((i) => i >= 0));
   const subjectHeaders = headers
     .map((h, i) => ({ h, i }))
     .filter(({ i }) => !skipIndices.has(i));
@@ -92,6 +115,14 @@ function parseCSV(text: string): { records: ParsedRecord[]; headers: string[] } 
     if (!rollNumber || !name) continue;
 
     const subjects: ParsedSubject[] = [];
+    if (marksIdx >= 0) {
+      const raw = (cells[marksIdx] ?? "").trim();
+      const absent = /^AB$/i.test(raw);
+      const val = Number(raw);
+      if (absent || Number.isFinite(val)) {
+        subjects.push({ name: singleSubjectName, total: absent ? 0 : val, absent });
+      }
+    }
     for (const { h, i } of subjectHeaders) {
       const raw = cells[i];
       if (!raw) continue;
@@ -131,12 +162,16 @@ function parseCSV(text: string): { records: ParsedRecord[]; headers: string[] } 
     });
   }
 
-  return { records, headers };
+  return { records, headers, subjectName: singleSubjectName || undefined, maxMarks };
 }
 
 // ─── PDF Text Parser ─────────────────────────────────────────────────────────
 
-function parsePDFText(text: string): { records: ParsedRecord[]; headers: string[] } {
+function titleCase(value: string) {
+  return value.toLowerCase().replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
+function parsePDFText(text: string): { records: ParsedRecord[]; headers: string[]; subjectName?: string; maxMarks?: number } {
   // Normalize whitespace
   const lines = text
     .split(/\n/)
@@ -187,11 +222,29 @@ function parsePDFText(text: string): { records: ParsedRecord[]; headers: string[
   const gpaHIdx = headers.findIndex((h) => /gpa|cgpa/i.test(h));
 
   const records: ParsedRecord[] = [];
+  const subjectLine = lines.find((line) => /mid\s*marks/i.test(line) && !/roll|student|marks\s*\[/i.test(line));
+  const subjectName = subjectLine ? titleCase(subjectLine.replace(/\s*-\s*mid\s*marks.*$/i, "").trim()) : undefined;
+  const marksHeader = lines.find((line) => /marks\s*\[\s*\d+\s*m?\s*\]/i.test(line));
+  const maxMarks = Number(marksHeader?.match(/marks\s*\[\s*(\d+)/i)?.[1] ?? 0) || undefined;
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    if (/^(page\s+\d+|total|average|class\s+avg|legend|—|result)/i.test(line)) continue;
+    if (/^(page\s+\d+|total|average|class\s+avg|legend|faculty|hod|result)/i.test(line)) continue;
+
+    const simpleRow = line.match(/^(\d+)\s+([A-Z0-9]+L?)\s+(.+?)\s+(\d+(?:\.\d+)?|AB)$/i);
+    if (simpleRow && subjectName) {
+      const markRaw = simpleRow[4].toUpperCase();
+      const absent = markRaw === "AB";
+      records.push({
+        rollNumber: simpleRow[2].trim(),
+        name: simpleRow[3].trim(),
+        subjects: [{ name: subjectName, total: absent ? 0 : Number(markRaw), absent }],
+        status: absent ? "warning" : "ok",
+        note: absent ? "Absent in uploaded PDF" : undefined,
+      });
+      continue;
+    }
 
     const parts = line.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
     if (parts.length < 2) continue;
@@ -226,11 +279,11 @@ function parsePDFText(text: string): { records: ParsedRecord[]; headers: string[
       subjects,
       gpa:    isNaN(gpaRaw) ? undefined : gpaRaw,
       status: subjects.length > 0 ? "ok" : "warning",
-      note:   subjects.length === 0 ? "Could not extract marks — check column alignment" : undefined,
+      note:   subjects.length === 0 ? "Could not extract marks - check column alignment" : undefined,
     });
   }
 
-  return { records, headers };
+  return { records, headers, subjectName, maxMarks };
 }
 
 // ─── Route: POST /api/bulk-upload/parse ─────────────────────────────────────
@@ -243,7 +296,7 @@ router.post("/parse", upload.single("file"), async (req, res) => {
       return;
     }
 
-    const { year = "", branch = "", semester = "0", dataType = "midmarks" } = req.body as Record<string, string>;
+    const { year = "", branch = "", semester = "0", dataType = "midmarks", midTerm = "mid1" } = req.body as Record<string, string>;
     const filename = file.originalname ?? "upload";
     const ext      = filename.toLowerCase().split(".").pop();
 
@@ -251,9 +304,12 @@ router.post("/parse", upload.single("file"), async (req, res) => {
     let headers: string[] = [];
     let format: "pdf" | "csv";
     let rawSample = "";
+    let detectedSubjectName = "";
+    let detectedMaxMarks = 0;
 
     if (ext === "pdf" || file.mimetype === "application/pdf") {
       format = "pdf";
+      ensurePdfNodeGlobals();
       const { PDFParse, VerbosityLevel } = await import("pdf-parse");
       const parser = new PDFParse({ data: file.buffer, verbosity: VerbosityLevel.ERRORS });
       const textResult = await parser.getText();
@@ -263,13 +319,17 @@ router.post("/parse", upload.single("file"), async (req, res) => {
       const result = parsePDFText(pdfText);
       records = result.records;
       headers = result.headers;
+      detectedSubjectName = result.subjectName ?? "";
+      detectedMaxMarks = result.maxMarks ?? 0;
     } else if (ext === "csv" || file.mimetype === "text/csv" || file.mimetype === "text/plain") {
       format = "csv";
       const text = file.buffer.toString("utf-8");
       rawSample = text.slice(0, 800);
-      const result = parseCSV(text);
+      const result = parseCSV(text, filename);
       records = result.records;
       headers = result.headers;
+      detectedSubjectName = result.subjectName ?? "";
+      detectedMaxMarks = result.maxMarks ?? 0;
     } else {
       res.status(400).json({
         success: false,
@@ -293,6 +353,9 @@ router.post("/parse", upload.single("file"), async (req, res) => {
       year,
       branch,
       semester: parseInt(semester) || 0,
+      midTerm: midTerm === "mid2" ? "mid2" : "mid1",
+      subjectName: detectedSubjectName,
+      maxMarks: detectedMaxMarks || undefined,
       filename,
       records,
       headers,
@@ -317,3 +380,4 @@ router.post("/parse", upload.single("file"), async (req, res) => {
 });
 
 export default router;
+

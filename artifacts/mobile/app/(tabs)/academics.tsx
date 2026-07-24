@@ -315,9 +315,24 @@ export default function AcademicsScreen() {
   const [activeTab,       setActiveTab]       = useState<Tab>("midmarks");
   const [expandedSyllabus, setExpandedSyllabus] = useState<string | null>(null);
   const [selectedSemIdx,   setSelectedSemIdx]  = useState(0);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState(user?.academicYear ?? "");
 
-  const midMarks = getStudentMidMarks(user?.id ?? "");
-  const results  = getStudentResults(user?.id ?? "");
+  const studentIdentifiers = [
+    user?.id,
+    user?.rollNumber,
+    user?.hallTicketNumber,
+    user?.enrollmentNo,
+  ].filter(Boolean) as string[];
+  const allMidMarks = getStudentMidMarks(studentIdentifiers);
+  const allResults = getStudentResults(studentIdentifiers);
+  const academicYears = Array.from(new Set([
+    user?.academicYear,
+    ...allMidMarks.map((m) => m.academicYear),
+    ...allResults.map((r) => r.academicYear),
+  ].filter(Boolean) as string[]));
+  const activeAcademicYear = selectedAcademicYear || academicYears[0] || user?.academicYear;
+  const midMarks = activeAcademicYear ? allMidMarks.filter((m) => !m.academicYear || m.academicYear === activeAcademicYear) : allMidMarks;
+  const results  = activeAcademicYear ? allResults.filter((r) => !r.academicYear || r.academicYear === activeAcademicYear) : allResults;
   const semResult = results[selectedSemIdx];
 
   // CGPA = average of all SGPAs (weighted by credits if available)
@@ -384,6 +399,30 @@ export default function AcademicsScreen() {
 
       <View style={styles.tabSection}>
         <Text style={[styles.tabSectionTitle, { color: colors.mutedForeground }]}>Academic Records</Text>
+        {academicYears.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabPanel}>
+            {academicYears.map((academicYear) => {
+              const isActive = activeAcademicYear === academicYear;
+              return (
+                <Pressable
+                  key={academicYear}
+                  style={({ pressed }) => [
+                    styles.tab,
+                    {
+                      backgroundColor: isActive ? colors.primary : colors.card,
+                      borderColor: isActive ? colors.primary : colors.border,
+                      opacity: pressed ? 0.82 : 1,
+                    },
+                  ]}
+                  onPress={() => setSelectedAcademicYear(academicYear)}
+                >
+                  <Feather name="calendar" size={15} color={isActive ? "#fff" : colors.primary} />
+                  <Text style={[styles.tabText, { color: isActive ? "#fff" : colors.foreground }]} numberOfLines={1}>AY {academicYear}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabPanel}>
           {tabs.map((t) => {
             const isActive = activeTab === t.key;

@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { User, useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import DropdownPicker from "@/components/DropdownPicker";
-import { YEARS, BRANCHES, SECTIONS, TARGET_BRANCHES } from "@/constants/academia";
+import { YEARS, BRANCHES, SECTIONS, TARGET_BRANCHES, ACADEMIC_YEARS, DEFAULT_ACADEMIC_YEAR } from "@/constants/academia";
 import { getApiUrl } from "@/utils/api";
 
 async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
@@ -43,7 +43,7 @@ export default function ManageStudentsScreen() {
   const [showModal, setShowModal] = useState(false);
   const [editStudent, setEditStudent] = useState<User | null>(null);
   const { user: currentUser } = useAuth();
-  const [form, setForm] = useState({ name: "", email: "", role: "student", password: "student123", sendCredentials: true, year: "", branch: "", section: "", rollNumber: "", phone: "" });
+  const [form, setForm] = useState({ name: "", email: "", role: "student", sendCredentials: true, year: "", branch: "", section: "", academicYear: DEFAULT_ACADEMIC_YEAR, rollNumber: "", phone: "" });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [credentialPreview, setCredentialPreview] = useState<{ email: string; password: string; body?: string } | null>(null);
@@ -62,7 +62,7 @@ export default function ManageStudentsScreen() {
     setEditStudent(null);
     setMessage("");
     setCredentialPreview(null);
-    setForm({ name: "", email: "", role: "student", password: "student123", sendCredentials: true, year: "", branch: "", section: "", rollNumber: "", phone: "" });
+    setForm({ name: "", email: "", role: "student", sendCredentials: true, year: "", branch: "", section: "", academicYear: DEFAULT_ACADEMIC_YEAR, rollNumber: "", phone: "" });
     setShowModal(true);
   };
 
@@ -70,7 +70,7 @@ export default function ManageStudentsScreen() {
     setEditStudent(s);
     setMessage("");
     setCredentialPreview(null);
-    setForm({ name: s.name, email: s.email, role: s.role, password: "", sendCredentials: false, year: s.year ?? "", branch: s.branch ?? "", section: s.section ?? "", rollNumber: s.rollNumber ?? s.enrollmentNo ?? "", phone: s.phone ?? "" });
+    setForm({ name: s.name, email: s.email, role: s.role, sendCredentials: false, year: s.year ?? "", branch: s.branch ?? "", section: s.section ?? "", academicYear: s.academicYear ?? DEFAULT_ACADEMIC_YEAR, rollNumber: s.rollNumber ?? s.enrollmentNo ?? "", phone: s.phone ?? "" });
     setShowModal(true);
   };
 
@@ -93,18 +93,27 @@ export default function ManageStudentsScreen() {
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) return;
     setLoading(true);
-    const payload = { ...form, hallTicketNumber: form.rollNumber, academicYear: "2024-25", triggeredByUserId: currentUser?.id };
+    const payload = { ...form, hallTicketNumber: form.rollNumber, triggeredByUserId: currentUser?.id };
     const result = editStudent
       ? await apiJson<{ success: boolean; user: User }>("/api/data/users/" + editStudent.id, { method: "PUT", body: JSON.stringify(payload) })
-      : await apiJson<{ success: boolean; user: User }>("/api/data/users", { method: "POST", body: JSON.stringify(payload) });
+      : await apiJson<{ success: boolean; user: User; temporaryPassword?: string; credentialEmail?: { body?: string; status?: string; deliveryStatus?: string; errorMessage?: string | null } }>("/api/data/users", { method: "POST", body: JSON.stringify(payload) });
     const updated = editStudent
       ? students.map((s) => (s.id === editStudent.id ? result.user : s))
       : [...students, result.user];
     setStudents(updated);
     setLoading(false);
     setShowModal(false);
-    const status = !editStudent && form.sendCredentials ? (result as any).credentialEmail?.deliveryStatus || (result as any).credentialEmail?.status : null;
-    setMessage(!editStudent && form.sendCredentials ? (status === "sent" ? "Temporary credentials email sent and saved in history." : "Credentials were created and logged. Configure email provider to send inbox email.") : "User saved successfully.");
+    if (!editStudent && form.sendCredentials && (result as any).temporaryPassword) {
+      setCredentialPreview({ email: form.email, password: (result as any).temporaryPassword, body: (result as any).credentialEmail?.body });
+    }
+    const credentialEmail = !editStudent && form.sendCredentials ? (result as any).credentialEmail : null;
+    const status = credentialEmail?.deliveryStatus || credentialEmail?.status;
+    const errorMessage = credentialEmail?.errorMessage;
+    setMessage(!editStudent && form.sendCredentials
+      ? status === "sent"
+        ? "Temporary credentials email sent and saved in history."
+        : "User created, but email was not sent: " + (errorMessage || "email provider is not configured correctly.") + " Temporary password is shown below."
+      : "User saved successfully.");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -112,14 +121,17 @@ export default function ManageStudentsScreen() {
     setMessage("");
     setCredentialPreview(null);
     try {
-      const result = await apiJson<{ success: boolean; user: User; credentialEmail?: { body?: string }; temporaryPassword: string }>("/api/data/users/" + student.id + "/credentials", {
+      const result = await apiJson<{ success: boolean; user: User; credentialEmail?: { body?: string; status?: string; deliveryStatus?: string; errorMessage?: string | null }; temporaryPassword: string }>("/api/data/users/" + student.id + "/credentials", {
         method: "POST",
         body: JSON.stringify({ triggeredByUserId: currentUser?.id }),
       });
       setStudents((current) => current.map((s) => (s.id === student.id ? result.user : s)));
       setCredentialPreview({ email: student.email, password: result.temporaryPassword, body: result.credentialEmail?.body });
-      const status = (result as any).credentialEmail?.deliveryStatus || (result as any).credentialEmail?.status;
-      setMessage(status === "sent" ? "New temporary credentials were emailed to " + student.name + "." : "New temporary credentials were generated and logged for " + student.name + ". Configure email provider to send inbox email.");
+      const credentialEmail = (result as any).credentialEmail;
+      const status = credentialEmail?.deliveryStatus || credentialEmail?.status;
+      setMessage(status === "sent"
+        ? "New temporary credentials were emailed to " + student.name + "."
+        : "New credentials were generated, but email was not sent: " + (credentialEmail?.errorMessage || "email provider is not configured correctly.") + " Temporary password is shown below.");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (_) {
       setMessage("Could not reissue credentials. Please check API and database.");
@@ -294,27 +306,13 @@ export default function ManageStudentsScreen() {
                 label="Account Type"
                 value={form.role}
                 options={[{ label: "Student", value: "student" }, { label: "Admin", value: "admin" }]}
-                onSelect={(v) => setForm((p) => ({ ...p, role: v, password: p.password || (v === "admin" ? "admin123" : "student123") }))}
+                onSelect={(v) => setForm((p) => ({ ...p, role: v }))}
                 icon="shield"
                 placeholder="Select account type"
               />
             </View>
             {!editStudent && (
               <>
-                <View style={styles.fieldGroup}>
-                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Temporary Password</Text>
-                  <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.secondary }]} >
-                    <Feather name="lock" size={16} color={colors.mutedForeground} />
-                    <TextInput
-                      style={[styles.input, { color: colors.foreground }]}
-                      placeholder="Temporary password"
-                      placeholderTextColor={colors.mutedForeground}
-                      value={form.password}
-                      onChangeText={(v) => setForm((p) => ({ ...p, password: v }))}
-                      secureTextEntry
-                    />
-                  </View>
-                </View>
                 <Pressable
                   style={[styles.credentialToggle, { backgroundColor: colors.secondary, borderColor: colors.border }]}
                   onPress={() => setForm((p) => ({ ...p, sendCredentials: !p.sendCredentials }))}
@@ -323,8 +321,8 @@ export default function ManageStudentsScreen() {
                     {form.sendCredentials ? <Feather name="check" size={13} color="#fff" /> : null}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.credentialToggleTitle, { color: colors.foreground }]}>Send temporary credentials email</Text>
-                    <Text style={[styles.credentialToggleSub, { color: colors.mutedForeground }]}>Email the temporary password, save history, and force password change after first login.</Text>
+                    <Text style={[styles.credentialToggleTitle, { color: colors.foreground }]}>Generate and email temporary credentials</Text>
+                    <Text style={[styles.credentialToggleSub, { color: colors.mutedForeground }]}>A unique password is created automatically and the user must change it after first login.</Text>
                   </View>
                 </Pressable>
               </>
@@ -365,6 +363,10 @@ export default function ManageStudentsScreen() {
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Section</Text>
               <DropdownPicker label="Select Section" value={form.section} options={SECTIONS} onSelect={(v) => setForm((p) => ({ ...p, section: v }))} icon="users" placeholder="Select section" />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Academic Year</Text>
+              <DropdownPicker label="Select Academic Year" value={form.academicYear} options={ACADEMIC_YEARS} onSelect={(v) => setForm((p) => ({ ...p, academicYear: v }))} icon="calendar" placeholder="Select academic year" />
             </View>
           </ScrollView>
         </View>

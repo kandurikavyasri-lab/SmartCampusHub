@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import DropdownPicker from "@/components/DropdownPicker";
-import { BRANCHES, TARGET_BRANCHES, YEARS } from "@/constants/academia";
+import { ACADEMIC_YEARS, BRANCHES, DEFAULT_ACADEMIC_YEAR, TARGET_BRANCHES, YEARS } from "@/constants/academia";
 import { useColors } from "@/hooks/useColors";
 import { getApiUrl } from "@/utils/api";
 
@@ -58,7 +58,7 @@ export default function ManageSubjectsScreen() {
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [message, setMessage] = useState("");
-  const [form, setForm] = useState({ code: "", name: "", year: "", branch: "", semester: "1", credits: "3", academicYear: "2024-25" });
+  const [form, setForm] = useState({ code: "", name: "", year: "", branch: "", semester: "1", credits: "3", academicYear: DEFAULT_ACADEMIC_YEAR });
 
   useEffect(() => { loadSubjects(); }, []);
 
@@ -78,7 +78,7 @@ export default function ManageSubjectsScreen() {
   function openAdd() {
     setEditing(null);
     setMessage("");
-    setForm({ code: "", name: "", year: "", branch: "", semester: "1", credits: "3", academicYear: "2024-25" });
+    setForm({ code: "", name: "", year: "", branch: "", semester: "1", credits: "3", academicYear: DEFAULT_ACADEMIC_YEAR });
     setShowModal(true);
   }
 
@@ -92,7 +92,7 @@ export default function ManageSubjectsScreen() {
       branch: subject.branch,
       semester: String(subject.semester),
       credits: String(subject.credits),
-      academicYear: subject.academicYear || "2024-25",
+      academicYear: subject.academicYear || DEFAULT_ACADEMIC_YEAR,
     });
     setShowModal(true);
   }
@@ -251,7 +251,7 @@ export default function ManageSubjectsScreen() {
             <Pressable onPress={saveSubject} disabled={loading}>{loading ? <ActivityIndicator size="small" color={colors.primary} /> : <Text style={[styles.modalAction, { color: colors.primary }]}>Save</Text>}</Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.modalFields} keyboardShouldPersistTaps="handled">
-            {[{ key: "code", label: "Subject Code", placeholder: "CS501" }, { key: "name", label: "Subject Name", placeholder: "Database Management Systems" }, { key: "academicYear", label: "Academic Year", placeholder: "2024-25" }].map((field) => (
+            {[{ key: "code", label: "Subject Code", placeholder: "CS501" }, { key: "name", label: "Subject Name", placeholder: "Database Management Systems" }].map((field) => (
               <View key={field.key} style={styles.fieldGroup}>
                 <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{field.label}</Text>
                 <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -261,6 +261,7 @@ export default function ManageSubjectsScreen() {
             ))}
             <View style={styles.fieldGroup}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Year</Text><DropdownPicker label="Year" value={form.year} options={YEARS} onSelect={(value) => setForm((current) => ({ ...current, year: value }))} icon="calendar" placeholder="Select year" /></View>
             <View style={styles.fieldGroup}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Department</Text><DropdownPicker label="Department" value={form.branch} options={BRANCHES} onSelect={(value) => setForm((current) => ({ ...current, branch: value }))} icon="book" placeholder="Select department" /></View>
+            <View style={styles.fieldGroup}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Academic Year</Text><DropdownPicker label="Academic Year" value={form.academicYear} options={ACADEMIC_YEARS} onSelect={(value) => setForm((current) => ({ ...current, academicYear: value }))} icon="calendar" placeholder="Select academic year" /></View>
             <View style={styles.fieldGroup}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Semester</Text><DropdownPicker label="Semester" value={form.semester} options={SEMESTERS} onSelect={(value) => setForm((current) => ({ ...current, semester: value }))} icon="layers" /></View>
             <View style={styles.fieldGroup}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Credits</Text><DropdownPicker label="Credits" value={form.credits} options={CREDITS} onSelect={(value) => setForm((current) => ({ ...current, credits: value }))} icon="award" /></View>
           </ScrollView>
