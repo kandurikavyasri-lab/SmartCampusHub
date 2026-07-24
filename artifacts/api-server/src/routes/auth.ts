@@ -54,6 +54,44 @@ async function sendEmail(to: string, subject: string, body: string, html?: strin
   const from = process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL;
   const replyTo = process.env.EMAIL_REPLY_TO;
 
+  if (provider === "brevo") {
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey || !from) {
+      return { status: "logged", errorMessage: "Brevo email provider is not configured. Add BREVO_API_KEY and EMAIL_FROM." };
+    }
+    const senderMatch = from.match(/^(.*?)\s*<([^>]+)>$/);
+    const senderName = senderMatch ? senderMatch[1].trim() : "SmartCampusHub";
+    const senderEmail = senderMatch ? senderMatch[2].trim() : from.trim();
+    try {
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "api-key": apiKey,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: senderName || "SmartCampusHub", email: senderEmail },
+          to: [{ email: to }],
+          subject,
+          textContent: body,
+          htmlContent: html,
+          replyTo: replyTo ? { email: replyTo } : undefined,
+        }),
+      });
+      if (!response.ok) {
+        const details = await response.text().catch(() => "");
+        console.error("[email] failed", { provider: "brevo", to, statusCode: response.status, details });
+        return { status: "failed", errorMessage: details || "Brevo returned HTTP " + response.status };
+      }
+      console.info("[email] sent", { provider: "brevo", to });
+      return { status: "sent", errorMessage: null };
+    } catch (error) {
+      console.error("[email] failed", { provider: "brevo", to, error: error instanceof Error ? error.message : error });
+      return { status: "failed", errorMessage: error instanceof Error ? error.message : "Brevo email sending failed" };
+    }
+  }
+
   if (provider === "gmail" || (!process.env.RESEND_API_KEY && gmailUser && gmailPassword)) {
     if (!gmailUser || !gmailPassword || !from) {
       return { status: "logged", errorMessage: "Gmail email provider is not configured. Add GMAIL_USER, GMAIL_APP_PASSWORD, and EMAIL_FROM." };
