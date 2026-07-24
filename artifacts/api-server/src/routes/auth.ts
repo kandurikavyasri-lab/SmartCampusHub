@@ -326,7 +326,14 @@ router.post("/forgot-password/request", async (req, res) => {
       errorMessage: delivery.errorMessage,
       expiresAt,
     });
-    req.log.info({ deliveryStatus: delivery.status, hasError: Boolean(delivery.errorMessage) }, "Password reset code delivery completed");
+    req.log.info(
+      {
+        deliveryStatus: delivery.status,
+        hasError: Boolean(delivery.errorMessage),
+        deliveryError: delivery.errorMessage,
+      },
+      "Password reset code delivery completed",
+    );
 
     const isProduction = process.env.NODE_ENV === "production";
     if (delivery.status === "failed") {

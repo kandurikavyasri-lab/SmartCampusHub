@@ -195,6 +195,15 @@ async function sendCredentialEmail(to: string, subject: string, body: string) {
 async function logCredentialEmail(user: typeof users.$inferSelect, temporaryPassword: string, triggeredByUserId?: number | null) {
   const email = buildCredentialEmail(user, temporaryPassword);
   const delivery = await sendCredentialEmail(user.email, email.subject, email.body);
+  logger.info(
+    {
+      userId: user.id,
+      deliveryStatus: delivery.status,
+      hasError: Boolean(delivery.errorMessage),
+      deliveryError: delivery.errorMessage,
+    },
+    "Temporary credentials email delivery completed",
+  );
   const [history] = await db.insert(credentialEmailHistory).values({
     userId: user.id,
     email: user.email,
