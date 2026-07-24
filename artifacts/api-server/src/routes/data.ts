@@ -16,6 +16,7 @@ import multer from "multer";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { randomUUID, scryptSync } from "node:crypto";
+import { logger } from "../lib/logger";
 
 const router: Router = Router();
 const profileUploadDirectory = join(process.cwd(), "uploads", "profiles");
@@ -108,6 +109,17 @@ function buildCredentialEmail(user: { name: string; email: string; role: string 
   return { subject, body };
 }
 
+function getEmailConfigStatus() {
+  const provider = (process.env.EMAIL_PROVIDER || "").toLowerCase() || (process.env.GMAIL_USER ? "gmail" : process.env.RESEND_API_KEY ? "resend" : "not_configured");
+  return {
+    provider,
+    gmailUserConfigured: Boolean(process.env.GMAIL_USER),
+    gmailAppPasswordConfigured: Boolean(process.env.GMAIL_APP_PASSWORD),
+    emailFromConfigured: Boolean(process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL),
+    resendConfigured: Boolean(process.env.RESEND_API_KEY),
+  };
+}
+
 async function sendCredentialEmail(to: string, subject: string, body: string) {
   const provider = (process.env.EMAIL_PROVIDER || "").toLowerCase();
   const gmailUser = process.env.GMAIL_USER;
@@ -135,8 +147,10 @@ async function sendCredentialEmail(to: string, subject: string, body: string) {
         subject,
         text: body,
       });
+      logger.info({ provider: "gmail", to }, "Temporary credentials email sent");
       return { status: "sent", errorMessage: null };
     } catch (error) {
+      logger.error({ err: error, provider: "gmail", to }, "Temporary credentials email failed");
       return { status: "failed", errorMessage: error instanceof Error ? error.message : "Gmail email sending failed" };
     }
   }
@@ -162,10 +176,13 @@ async function sendCredentialEmail(to: string, subject: string, body: string) {
     });
     if (!response.ok) {
       const details = await response.text().catch(() => "");
+      logger.error({ provider: "resend", to, statusCode: response.status, details }, "Temporary credentials email failed");
       return { status: "failed", errorMessage: details || "Email provider returned HTTP " + response.status };
     }
+    logger.info({ provider: "resend", to }, "Temporary credentials email sent");
     return { status: "sent", errorMessage: null };
   } catch (error) {
+    logger.error({ err: error, provider: "resend", to }, "Temporary credentials email failed");
     return { status: "failed", errorMessage: error instanceof Error ? error.message : "Email sending failed" };
   }
 }
@@ -330,6 +347,10 @@ router.get("/bootstrap", async (_req, res) => {
 
 router.get("/users", async (_req, res) => {
   res.json({ success: true, users: await listUsers() });
+});
+
+router.get("/email-status", async (_req, res) => {
+  res.json({ success: true, email: getEmailConfigStatus() });
 });
 
 router.post("/users", async (req, res) => {
