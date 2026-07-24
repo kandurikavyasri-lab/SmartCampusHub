@@ -7,7 +7,7 @@ export interface User {
   name: string;
   email: string;
   password: string;
-  role: "student" | "admin";
+  role: "student" | "admin" | "faculty";
   year: string;
   branch: string;
   section: string;

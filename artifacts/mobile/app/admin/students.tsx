@@ -286,7 +286,7 @@ export default function ManageStudentsScreen() {
 
       <Modal visible={showModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setShowModal(false)}>
         <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: insets.top + 12 }]}>
             <Pressable onPress={() => setShowModal(false)}>
               <Text style={{ fontSize: 16, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>Cancel</Text>
             </Pressable>
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   credentialToggleTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
   credentialToggleSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17, marginTop: 2 },
   modalContent: { flex: 1 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, minHeight: 70, borderBottomWidth: 1 },
   modalFields: { padding: 22, gap: 16 },
   fieldGroup: { gap: 7 },
   fieldLabel: { fontSize: 12, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0 },

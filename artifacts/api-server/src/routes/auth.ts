@@ -61,7 +61,12 @@ async function sendEmail(to: string, subject: string, body: string, html?: strin
     try {
       const nodemailer = await import("nodemailer");
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        connectionTimeout: 12000,
+        greetingTimeout: 12000,
+        socketTimeout: 12000,
         auth: {
           user: gmailUser,
           pass: gmailPassword,
@@ -75,8 +80,10 @@ async function sendEmail(to: string, subject: string, body: string, html?: strin
         text: body,
         html,
       });
+      console.info("[email] sent", { provider: "gmail", to });
       return { status: "sent", errorMessage: null };
     } catch (error) {
+      console.error("[email] failed", { provider: "gmail", to, error: error instanceof Error ? error.message : error });
       return { status: "failed", errorMessage: error instanceof Error ? error.message : "Gmail email sending failed" };
     }
   }
@@ -104,10 +111,13 @@ async function sendEmail(to: string, subject: string, body: string, html?: strin
     });
     if (!response.ok) {
       const details = await response.text().catch(() => "");
+      console.error("[email] failed", { provider: "resend", to, statusCode: response.status, details });
       return { status: "failed", errorMessage: details || "Email provider returned HTTP " + response.status };
     }
+    console.info("[email] sent", { provider: "resend", to });
     return { status: "sent", errorMessage: null };
   } catch (error) {
+    console.error("[email] failed", { provider: "resend", to, error: error instanceof Error ? error.message : error });
     return { status: "failed", errorMessage: error instanceof Error ? error.message : "Email sending failed" };
   }
 }
@@ -290,6 +300,7 @@ router.post("/change-password", async (req, res) => {
 router.post("/forgot-password/request", async (req, res) => {
   try {
     const identifier = String(req.body.identifier ?? "").trim();
+    req.log.info({ identifierType: identifier.includes("@") ? "email" : "phone" }, "Password reset request received");
     if (!identifier) {
       res.status(400).json({ success: false, error: "Enter your email or mobile number." });
       return;
@@ -297,6 +308,7 @@ router.post("/forgot-password/request", async (req, res) => {
 
     const user = await findUserByIdentifier(identifier);
     if (!user || !user.isActive) {
+      req.log.info({ found: false }, "Password reset request completed without account match");
       res.json({ success: true, message: "If this account exists, a reset code has been sent." });
       return;
     }
@@ -314,6 +326,7 @@ router.post("/forgot-password/request", async (req, res) => {
       errorMessage: delivery.errorMessage,
       expiresAt,
     });
+    req.log.info({ deliveryStatus: delivery.status, hasError: Boolean(delivery.errorMessage) }, "Password reset code delivery completed");
 
     const isProduction = process.env.NODE_ENV === "production";
     if (delivery.status === "failed") {
@@ -321,7 +334,7 @@ router.post("/forgot-password/request", async (req, res) => {
       return;
     }
     if (delivery.status === "logged" && isProduction) {
-      res.status(500).json({ success: false, error: "Email provider is not configured. Add RESEND_API_KEY and EMAIL_FROM in the backend environment." });
+      res.status(500).json({ success: false, error: "Email provider is not configured. Add EMAIL_PROVIDER, GMAIL_USER, GMAIL_APP_PASSWORD, and EMAIL_FROM in Render environment variables." });
       return;
     }
 

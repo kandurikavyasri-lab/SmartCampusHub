@@ -134,7 +134,12 @@ async function sendCredentialEmail(to: string, subject: string, body: string) {
     try {
       const nodemailer = await import("nodemailer");
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        connectionTimeout: 12000,
+        greetingTimeout: 12000,
+        socketTimeout: 12000,
         auth: {
           user: gmailUser,
           pass: gmailPassword,
